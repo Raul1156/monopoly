@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
@@ -9,13 +9,15 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import type { Screen } from '../src/App.tsx';
+import { apiService, type ShopProduct, type User } from '../src/services/apiService';
 
 interface ShopScreenProps {
   onNavigate: (screen: Screen) => void;
+  currentUser: User;
 }
 
 interface ShopItem {
-  id: string;
+  id: number;
   name: string;
   description: string;
   price: number;
@@ -25,51 +27,32 @@ interface ShopItem {
   preview: string;
 }
 
-export function ShopScreen({ onNavigate }: ShopScreenProps) {
+export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
 
-  const shopItems: ShopItem[] = [
-    {
-      id: '1',
-      name: 'Avatar Torero',
-      description: 'Luce como un auténtico torero español',
-      price: 2500,
-      currency: 'pts',
-      category: 'avatar',
-      rarity: 'rare',
-      preview: '🐂'
-    },
-    {
-      id: '2',
-      name: 'Avatar Flamenca',
-      description: 'Baila por el tablero con elegancia',
-      price: 3000,
-      currency: 'pts',
-      category: 'avatar',
-      rarity: 'epic',
-      preview: '💃'
-    },
-    {
-      id: '3',
-      name: 'Tema Andaluz',
-      description: 'Tablero con estilo andaluz clásico',
-      price: 50,
-      currency: 'gems',
-      category: 'theme',
-      rarity: 'legendary',
-      preview: '🏛️'
-    },
-    {
-      id: '6',
-      name: 'Avatar Rey',
-      description: 'Corona dorada de la realeza española',
-      price: 5000,
-      currency: 'pts',
-      category: 'avatar',
-      rarity: 'legendary',
-      preview: '👑'
-    }
-  ];
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    apiService.getShopProducts()
+      .then((products: ShopProduct[]) => {
+        if (!mounted) return;
+        setShopItems(products);
+      })
+      .catch((err) => {
+        console.error('Error loading shop products:', err);
+        if (!mounted) return;
+        setShopItems([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const rarityColors = {
     common: 'border-gray-400 text-gray-400',
@@ -158,12 +141,12 @@ export function ShopScreen({ onNavigate }: ShopScreenProps) {
                   {selectedItem.currency === 'pts' ? (
                     <>
                       <Coins className="w-4 h-4 text-green-400" />
-                      <span className="text-green-400">15,420 pts</span>
+                      <span className="text-green-400">{currentUser.totalMoney.toLocaleString()} pts</span>
                     </>
                   ) : (
                     <>
                       <Star className="w-4 h-4 text-purple-400" />
-                      <span className="text-purple-400">127 gems</span>
+                      <span className="text-purple-400">{currentUser.gems.toLocaleString()} gems</span>
                     </>
                   )}
                 </div>
@@ -173,8 +156,8 @@ export function ShopScreen({ onNavigate }: ShopScreenProps) {
                 <span className="text-white">Saldo después de la compra:</span>
                 <span className={selectedItem.currency === 'pts' ? 'text-green-400' : 'text-purple-400'}>
                   {selectedItem.currency === 'pts' 
-                    ? `${(15420 - selectedItem.price).toLocaleString()} pts`
-                    : `${127 - selectedItem.price} gems`
+                    ? `${Math.max(0, currentUser.totalMoney - selectedItem.price).toLocaleString()} pts`
+                    : `${Math.max(0, currentUser.gems - selectedItem.price).toLocaleString()} gems`
                   }
                 </span>
               </div>
@@ -214,14 +197,18 @@ export function ShopScreen({ onNavigate }: ShopScreenProps) {
         <div className="flex items-center space-x-3 text-sm">
           <div className="flex items-center text-green-300">
             <Coins className="w-4 h-4 mr-1" />
-            <span>15,420 pts</span>
+            <span>{currentUser.totalMoney.toLocaleString()} pts</span>
           </div>
           <div className="flex items-center text-purple-300">
             <Star className="w-4 h-4 mr-1" />
-            <span>127</span>
+            <span>{currentUser.gems.toLocaleString()}</span>
           </div>
         </div>
       </div>
+
+      {loading && (
+        <div className="text-white/60 text-center py-6">Cargando productos...</div>
+      )}
 
       {/* Categories */}
       <div className="grid grid-cols-2 gap-2 mb-6">

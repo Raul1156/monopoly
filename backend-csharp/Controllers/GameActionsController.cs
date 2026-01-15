@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MonopolyAPI.DTOs;
 using MonopolyAPI.Services;
 using MonopolyAPI.Data;
+using MonopolyAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace MonopolyAPI.Controllers;

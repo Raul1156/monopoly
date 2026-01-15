@@ -18,18 +18,24 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const handleLogin = async (username: string, email: string = '') => {
+  const handleAuth = async (params: { mode: 'login' | 'register'; username: string; password: string; email?: string }) => {
     try {
-      const user = await apiService.login({ 
-        username, 
-        email: email || `${username}@monopoly.com` 
-      });
+      const user = params.mode === 'register'
+        ? await apiService.register({
+            username: params.username,
+            email: params.email || '',
+            password: params.password,
+          })
+        : await apiService.login({
+            username: params.username,
+            password: params.password,
+          });
       setCurrentUser(user);
       setIsLoggedIn(true);
       setCurrentScreen('menu');
     } catch (error) {
       console.error('Error during login:', error);
-      alert('Error al iniciar sesión. Por favor, intenta de nuevo.');
+      throw error;
     }
   };
 
@@ -44,7 +50,7 @@ export default function App() {
   };
 
   if (!isLoggedIn || !currentUser) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onAuth={handleAuth} />;
   }
 
   return (
@@ -78,10 +84,10 @@ export default function App() {
           <MonopolyScreen onNavigate={navigateToScreen} />
         )}
         {currentScreen === 'shop' && (
-          <ShopScreen onNavigate={navigateToScreen} />
+          <ShopScreen onNavigate={navigateToScreen} currentUser={currentUser} />
         )}
         {currentScreen === 'inventory' && (
-          <InventoryScreen onNavigate={navigateToScreen} />
+          <InventoryScreen onNavigate={navigateToScreen} currentUser={currentUser} />
         )}
         {currentScreen === 'settings' && (
           <SettingsScreen onNavigate={navigateToScreen} onLogout={handleLogout} />

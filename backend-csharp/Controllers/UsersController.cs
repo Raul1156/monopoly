@@ -22,8 +22,22 @@ public class UsersController : ControllerBase
         {
             var user = await _userService.Login(request);
             if (user == null)
-                return BadRequest("Failed to login");
+                return Unauthorized("Invalid username/email or password");
 
+            return Ok(user);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("register")]
+    public async Task<ActionResult<UserDto>> Register([FromBody] RegisterRequestDto request)
+    {
+        try
+        {
+            var user = await _userService.Register(request);
             return Ok(user);
         }
         catch (Exception ex)

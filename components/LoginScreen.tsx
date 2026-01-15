@@ -6,20 +6,56 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Gamepad2, Trophy, Crown } from 'lucide-react';
 
 interface LoginScreenProps {
-  onLogin: (username: string, email: string) => void;
+  onAuth: (params: { mode: 'login' | 'register'; username: string; password: string; email?: string }) => Promise<void>;
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onAuth }: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.trim()) {
-      const userEmail = email.trim() || `${username}@monopoly.com`;
-      onLogin(username, userEmail);
+    setError(null);
+
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+    const rawPassword = password;
+
+    if (!trimmedUsername) {
+      setError('El nombre de usuario es obligatorio');
+      return;
+    }
+
+    if (!rawPassword.trim()) {
+      setError('La contraseña es obligatoria');
+      return;
+    }
+
+    if (showRegister && !trimmedEmail) {
+      setError('El email es obligatorio para registrarse');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (showRegister) {
+        await onAuth({ mode: 'register', username: trimmedUsername, email: trimmedEmail, password: rawPassword });
+      } else {
+        await onAuth({ mode: 'login', username: trimmedUsername, password: rawPassword });
+      }
+    } catch (err) {
+      console.error(err);
+      if (err instanceof Error && err.message) {
+        setError(err.message);
+      } else {
+        setError('Error de autenticación');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,10 +113,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             <div className="space-y-2">
               <Input
                 type="password"
-                placeholder="Contraseña (opcional)"
+                placeholder="Contraseña"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-white/10 border-amber-500/30 text-white placeholder:text-white/60 focus:border-amber-400"
+                required
               />
             </div>
 
@@ -88,19 +125,27 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               <div className="space-y-2">
                 <Input
                   type="email"
-                  placeholder="Email (opcional)"
+                  placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="bg-white/10 border-amber-500/30 text-white placeholder:text-white/60 focus:border-amber-400"
+                  required
                 />
+              </div>
+            )}
+
+            {error && (
+              <div className="text-sm text-red-200 bg-red-900/30 border border-red-500/30 rounded-md p-3">
+                {error}
               </div>
             )}
 
             <Button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white border-none shadow-lg"
             >
-              {showRegister ? 'Registrarse' : 'Iniciar Sesión'}
+              {isSubmitting ? 'Procesando...' : (showRegister ? 'Registrarse' : 'Iniciar Sesión')}
             </Button>
           </form>
 

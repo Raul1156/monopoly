@@ -4,6 +4,14 @@ public class LoginRequestDto
 {
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public class RegisterRequestDto
+{
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
 }
 
 public class UserDto
@@ -16,8 +24,21 @@ public class UserDto
     public int GamesPlayed { get; set; }
     public int GamesWon { get; set; }
     public int TotalMoney { get; set; }
+    public int Gems { get; set; }
     public double TimePlayedHours { get; set; }
     public int Elo { get; set; }
+}
+
+public class BoardSpaceDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Position { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int? PropertyId { get; set; }
+    public PropertyDto? Property { get; set; }
+    public int? ActionAmount { get; set; }
 }
 
 public class CreateGameDto
@@ -92,4 +113,28 @@ public class PropertyDto
     public int RentBase { get; set; }
     public string Color { get; set; } = string.Empty;
     public int Position { get; set; }
+}
+
+public class ShopProductDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public int Price { get; set; }
+    public string Currency { get; set; } = "pts";
+    public string Category { get; set; } = "avatar";
+    public string Rarity { get; set; } = "common";
+    public string Preview { get; set; } = string.Empty;
+}
+
+public class InventoryItemDto
+{
+    public int ProductId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Category { get; set; } = "avatars";
+    public string Rarity { get; set; } = "common";
+    public string Preview { get; set; } = string.Empty;
+    public bool Equipped { get; set; }
+    public int Quantity { get; set; }
 }

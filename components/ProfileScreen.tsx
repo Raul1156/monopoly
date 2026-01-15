@@ -27,7 +27,7 @@ import {
   Lock,
   Trash2
 } from 'lucide-react';
-import type { User as UserType } from '../src/App.tsx';
+import type { User as UserType } from '../src/services/apiService';
 
 interface ProfileScreenProps {
   user: UserType;

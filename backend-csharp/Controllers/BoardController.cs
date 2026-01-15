@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MonopolyAPI.Services;
-using MonopolyAPI.Models;
+using MonopolyAPI.DTOs;
 
 namespace MonopolyAPI.Controllers;
 
@@ -16,21 +16,21 @@ public class BoardController : ControllerBase
     }
 
     [HttpGet("spaces")]
-    public async Task<ActionResult<List<BoardSpace>>> GetBoardSpaces()
+    public async Task<ActionResult<List<BoardSpaceDto>>> GetBoardSpaces()
     {
         var spaces = await _boardService.GetBoardSpaces();
         return Ok(spaces);
     }
 
     [HttpGet("properties")]
-    public async Task<ActionResult<List<Property>>> GetAllProperties()
+    public async Task<ActionResult<List<PropertyDto>>> GetAllProperties()
     {
         var properties = await _boardService.GetAllProperties();
         return Ok(properties);
     }
 
     [HttpGet("properties/{position}")]
-    public async Task<ActionResult<Property>> GetPropertyByPosition(int position)
+    public async Task<ActionResult<PropertyDto>> GetPropertyByPosition(int position)
     {
         var property = await _boardService.GetPropertyByPosition(position);
         if (property == null)

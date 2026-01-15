@@ -1,6 +1,6 @@
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Home, X, DollarSign } from 'lucide-react';
+import { Home, X } from 'lucide-react';
 
 interface PlayerProperty {
   propertyId: number;

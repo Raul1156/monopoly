@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { MapPin, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Home } from "lucide-react";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { Screen } from "../src/App";
 import { PropertyCardModal, type Property } from "./PropertyCardModal";
 import { PlayerPropertiesModal } from "./PlayerPropertiesModal";
+import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/apiService";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -18,7 +19,6 @@ interface PlayerProperty {
 }
 
 export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
-  const [diceValue, setDiceValue] = useState<number | null>(null);
   const [dice1, setDice1] = useState<number | null>(null);
   const [selectedPlayerForProperties, setSelectedPlayerForProperties] = useState<number | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState(1);
@@ -27,49 +27,80 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [hasRolledDice, setHasRolledDice] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estructura de propiedades del tablero con precios escalonados
-  const boardProperties: Property[] = [
-    { id: 0, nombre: "Salida", tipo: "inicio" },
-    { id: 1, nombre: "San José", tipo: "propiedad", precio: 60, alquiler: 2 },
-    { id: 2, nombre: "Hacienda", tipo: "hacienda" },
-    { id: 3, nombre: "Juan Ramón Jiménez", tipo: "propiedad", precio: 60, alquiler: 4 },
-    { id: 4, nombre: "Impuesto 21%", tipo: "impuesto", cantidad: 200 },
-    { id: 5, nombre: "Estación de San Vicente", tipo: "estacion", precio: 200, alquiler: 25 },
-    { id: 6, nombre: "Calle Perú", tipo: "propiedad", precio: 100, alquiler: 6 },
-    { id: 7, nombre: "Lotería", tipo: "loteria" },
-    { id: 8, nombre: "Calle Nueva Alicante", tipo: "propiedad", precio: 100, alquiler: 6 },
-    { id: 9, nombre: "Calle Pintor Picasso", tipo: "propiedad", precio: 120, alquiler: 8 },
-    { id: 10, nombre: "Cárcel de Foncale", tipo: "carcel" },
-    { id: 11, nombre: "Calle de La Plata", tipo: "propiedad", precio: 140, alquiler: 10 },
-    { id: 12, nombre: "Iberdrola (Eléctrica)", tipo: "compañia", precio: 150, alquiler: 4 },
-    { id: 13, nombre: "Calle del Bronce", tipo: "propiedad", precio: 140, alquiler: 10 },
-    { id: 14, nombre: "Calle de Alicante", tipo: "propiedad", precio: 160, alquiler: 12 },
-    { id: 15, nombre: "Estación Virgen del Remedio", tipo: "estacion", precio: 200, alquiler: 25 },
-    { id: 16, nombre: "Calle de Castelar", tipo: "propiedad", precio: 180, alquiler: 14 },
-    { id: 17, nombre: "Hacienda", tipo: "hacienda" },
-    { id: 18, nombre: "Calle Relleu", tipo: "propiedad", precio: 180, alquiler: 14 },
-    { id: 19, nombre: "Calle de los Postigos", tipo: "propiedad", precio: 200, alquiler: 16 },
-    { id: 20, nombre: "Casino", tipo: "casino" },
-    { id: 21, nombre: "Calle San Nicolás", tipo: "propiedad", precio: 220, alquiler: 18 },
-    { id: 22, nombre: "Lotería", tipo: "loteria" },
-    { id: 23, nombre: "Calle Juan Bautista", tipo: "propiedad", precio: 220, alquiler: 18 },
-    { id: 24, nombre: "Calle El Puerto", tipo: "propiedad", precio: 240, alquiler: 20 },
-    { id: 25, nombre: "Estación Mercado", tipo: "estacion", precio: 200, alquiler: 25 },
-    { id: 26, nombre: "Calle Alfonso el Sabio", tipo: "propiedad", precio: 260, alquiler: 22 },
-    { id: 27, nombre: "Calle Federico Soto", tipo: "propiedad", precio: 260, alquiler: 22 },
-    { id: 28, nombre: "Aquea Service (Agua)", tipo: "compañia", precio: 150, alquiler: 4 },
-    { id: 29, nombre: "Calle Canalejas", tipo: "propiedad", precio: 280, alquiler: 24 },
-    { id: 30, nombre: "Comisaría", tipo: "irCarcel" },
-    { id: 31, nombre: "Calle Costa Blanca", tipo: "propiedad", precio: 300, alquiler: 26 },
-    { id: 32, nombre: "Calle Oviedo", tipo: "propiedad", precio: 300, alquiler: 26 },
-    { id: 33, nombre: "Hacienda", tipo: "hacienda" },
-    { id: 34, nombre: "Calle José Garberi", tipo: "propiedad", precio: 320, alquiler: 28 },
-    { id: 35, nombre: "Estación de Muchavista", tipo: "estacion", precio: 200, alquiler: 25 },
-    { id: 36, nombre: "Lotería", tipo: "loteria" },
-    { id: 37, nombre: "Calle Camino del Faro", tipo: "propiedad", precio: 350, alquiler: 35 },
-    { id: 38, nombre: "Casino", tipo: "casino" },
-    { id: 39, nombre: "Calle de la Dorada", tipo: "propiedad", precio: 400, alquiler: 50 },
-  ];
+  const [boardProperties, setBoardProperties] = useState<Property[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const mapSpaceToProperty = (space: ApiBoardSpace): Property => {
+      const tipo = (() => {
+        switch (space.type) {
+          case 'SALIDA':
+            return 'inicio';
+          case 'PROPIEDAD':
+            return 'propiedad';
+          case 'ESTACION':
+            return 'estacion';
+          case 'COMPANIA':
+            return 'compañia';
+          case 'COMUNIDAD':
+            return 'hacienda';
+          case 'SUERTE':
+          case 'LOTERIA':
+            return 'loteria';
+          case 'CARCEL':
+            return 'carcel';
+          case 'IR_CARCEL':
+            return 'irCarcel';
+          case 'CASINO':
+            return 'casino';
+          case 'IMPUESTO':
+            return 'impuesto';
+          default:
+            return 'propiedad';
+        }
+      })();
+
+      const base: Property = {
+        id: space.position,
+        nombre: space.name,
+        tipo,
+      };
+
+      if (tipo === 'propiedad' || tipo === 'estacion' || tipo === 'compañia') {
+        return {
+          ...base,
+          precio: space.property?.price,
+          alquiler: space.property?.rentBase,
+        };
+      }
+
+      if (tipo === 'impuesto') {
+        return { ...base, cantidad: space.actionAmount ?? undefined };
+      }
+
+      return base;
+    };
+
+    apiService.getBoardSpaces()
+      .then((spaces) => {
+        if (!mounted) return;
+        const maxPos = spaces.reduce((max, s) => Math.max(max, s.position), 0);
+        const arr = new Array<Property>(maxPos + 1);
+        spaces.forEach((s) => {
+          arr[s.position] = mapSpaceToProperty(s);
+        });
+        setBoardProperties(arr);
+      })
+      .catch((err) => {
+        console.error('Error loading board spaces:', err);
+        if (mounted) setError('No se pudo cargar el tablero desde la base de datos');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Jugadores: todos empiezan en la casilla 0 
   const [playersInGame, setPlayersInGame] = useState([
@@ -167,7 +198,6 @@ const boardPositions = [
       const singleDie = rawValue !== null ? ((rawValue - 1) % 6) + 1 : Math.floor(Math.random() * 6) + 1;
       const diceTotal = singleDie;
 
-      setDiceValue(diceTotal);
       setDice1(singleDie);
       setHasRolledDice(true);
       toast.success(`🎲 Sacaste ${singleDie}`);
@@ -246,7 +276,6 @@ const boardPositions = [
       toast.error("⚠️ Error al tirar los dados");
       // Resetear el estado en caso de error
       setHasRolledDice(false);
-      setDiceValue(null);
     }
   };
 
@@ -294,7 +323,6 @@ const boardPositions = [
     // Cambiar turno después de que se cierre el modal
     setTimeout(() => {
       setCurrentPlayer((prev) => (prev % playersInGame.length) + 1);
-      setDiceValue(null);
       setDice1(null);
       setHasRolledDice(false);
     }, 150);

@@ -116,7 +116,14 @@ Para usar SQL Server (producción):
 ```bash
 curl -X POST http://localhost:5000/api/users/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"raul","email":"raul@monopoly.com"}'
+   -d '{"username":"raul","password":"tuPassword"}'
+```
+
+### Registro de Usuario
+```bash
+curl -X POST http://localhost:5000/api/users/register \
+   -H "Content-Type: application/json" \
+   -d '{"username":"raul","email":"raul@monopoly.com","password":"tuPassword"}'
 ```
 
 ### Crear Partida

@@ -8,6 +8,7 @@ namespace MonopolyAPI.Services;
 public interface IUserService
 {
     Task<UserDto?> Login(LoginRequestDto request);
+    Task<UserDto> Register(RegisterRequestDto request);
     Task<UserDto?> GetUserById(int id);
     Task<List<UserDto>> GetTopPlayers(int count = 10);
     Task<UserDto> UpdateUser(int id, UserDto userDto);
@@ -24,30 +25,70 @@ public class UserService : IUserService
 
     public async Task<UserDto?> Login(LoginRequestDto request)
     {
+        var username = request.Username?.Trim() ?? string.Empty;
+        var email = request.Email?.Trim() ?? string.Empty;
+        var password = request.Password ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(email))
+            throw new Exception("Username or email is required");
+        if (string.IsNullOrWhiteSpace(password))
+            throw new Exception("Password is required");
+
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username || u.Email == request.Email);
+            .FirstOrDefaultAsync(u => (!string.IsNullOrWhiteSpace(username) && u.Username == username)
+                                   || (!string.IsNullOrWhiteSpace(email) && u.Email == email));
 
         if (user == null)
+            return null;
+
+        try
         {
-            // Create new user
-            user = new User
-            {
-                Username = request.Username,
-                Email = request.Email,
-                Avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + request.Username,
-                Level = "Novato",
-                TotalMoney = 1500,
-                Elo = 1000
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            if (string.IsNullOrWhiteSpace(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+                return null;
         }
-        else
+        catch
         {
-            user.LastLogin = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            return null;
         }
 
+        user.LastLogin = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return MapToDto(user);
+    }
+
+    public async Task<UserDto> Register(RegisterRequestDto request)
+    {
+        var username = request.Username?.Trim() ?? string.Empty;
+        var email = request.Email?.Trim() ?? string.Empty;
+        var password = request.Password ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(username))
+            throw new Exception("Username is required");
+        if (string.IsNullOrWhiteSpace(email))
+            throw new Exception("Email is required");
+        if (string.IsNullOrWhiteSpace(password))
+            throw new Exception("Password is required");
+
+        var exists = await _context.Users.AnyAsync(u => u.Username == username || u.Email == email);
+        if (exists)
+            throw new Exception("Username or email already exists");
+
+        var user = new User
+        {
+            Username = username,
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username,
+            Level = "Novato",
+            TotalMoney = 1500,
+            Elo = 1000,
+            CreatedAt = DateTime.UtcNow,
+            LastLogin = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
         return MapToDto(user);
     }
 

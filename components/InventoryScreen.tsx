@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
@@ -11,14 +11,16 @@ import {
   DollarSign
 } from 'lucide-react';
 import type { Screen } from '../src/App.tsx';
+import { apiService, type InventoryItem as ApiInventoryItem, type User } from '../src/services/apiService';
 
 interface InventoryScreenProps {
   onNavigate: (screen: Screen) => void;
+  currentUser: User;
   playerProperties?: Array<{ id: number; name: string; price: number; level?: number }>;
 }
 
 interface InventoryItem {
-  id: string;
+  id: number;
   name: string;
   description: string;
   category: 'avatars' | 'themes' | 'properties';
@@ -27,60 +29,40 @@ interface InventoryItem {
   equipped: boolean;
 }
 
-export function InventoryScreen({ onNavigate, playerProperties = [] }: InventoryScreenProps) {
+export function InventoryScreen({ onNavigate, currentUser, playerProperties = [] }: InventoryScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<'avatars' | 'themes' | 'properties'>('properties');
-  const [equippedItems, setEquippedItems] = useState<Set<string>>(new Set(['1', '4']));
 
-  const inventoryItems: InventoryItem[] = [
-    // Avatars
-    {
-      id: '1',
-      name: 'Avatar Clásico',
-      description: 'Tu avatar por defecto',
-      category: 'avatars',
-      rarity: 'common',
-      preview: '👤',
-      equipped: true
-    },
-    {
-      id: '2',
-      name: 'Avatar Torero',
-      description: 'Luce como un auténtico torero español',
-      category: 'avatars',
-      rarity: 'rare',
-      preview: '🐂',
-      equipped: false
-    },
-    {
-      id: '3',
-      name: 'Avatar Flamenca',
-      description: 'Baila por el tablero con elegancia',
-      category: 'avatars',
-      rarity: 'epic',
-      preview: '💃',
-      equipped: false
-    },
-    
-    // Themes
-    {
-      id: '4',
-      name: 'Tema Clásico',
-      description: 'Tablero tradicional español',
-      category: 'themes',
-      rarity: 'common',
-      preview: '🏛️',
-      equipped: true
-    },
-    {
-      id: '5',
-      name: 'Tema Andaluz',
-      description: 'Tablero con estilo andaluz clásico',
-      category: 'themes',
-      rarity: 'legendary',
-      preview: '🌸',
-      equipped: false
-    }
-  ];
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [equippedItems, setEquippedItems] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    let mounted = true;
+    apiService.getInventory(currentUser.id)
+      .then((items: ApiInventoryItem[]) => {
+        if (!mounted) return;
+        const mapped: InventoryItem[] = items.map(i => ({
+          id: i.productId,
+          name: i.name,
+          description: i.description,
+          category: i.category,
+          rarity: i.rarity,
+          preview: i.preview,
+          equipped: i.equipped,
+        }));
+        setInventoryItems(mapped);
+        setEquippedItems(new Set(mapped.filter(x => x.equipped).map(x => x.id)));
+      })
+      .catch((err) => {
+        console.error('Error loading inventory:', err);
+        if (!mounted) return;
+        setInventoryItems([]);
+        setEquippedItems(new Set());
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser.id]);
 
   const rarityColors = {
     common: 'border-gray-400 text-gray-400',
@@ -91,7 +73,7 @@ export function InventoryScreen({ onNavigate, playerProperties = [] }: Inventory
 
   const filteredItems = inventoryItems.filter(item => item.category === selectedCategory);
 
-  const handleEquip = (itemId: string, category: string) => {
+  const handleEquip = (itemId: number, category: string) => {
     const newEquipped = new Set(equippedItems);
     
     // Desequipar otros items de la misma categoría

@@ -5,6 +5,7 @@ public class User
     public int Id { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
     public string Avatar { get; set; } = string.Empty;
     public string Level { get; set; } = "Novato";
     public int GamesPlayed { get; set; } = 0;

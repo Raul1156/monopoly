@@ -6,6 +6,10 @@ echo.
 
 cd backend-csharp
 
+REM Ensure consistent local dev behavior
+set ASPNETCORE_ENVIRONMENT=Development
+set ASPNETCORE_URLS=http://localhost:5000
+
 echo Restaurando dependencias...
 dotnet restore
 

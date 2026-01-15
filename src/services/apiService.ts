@@ -11,13 +11,21 @@ export interface User {
   gamesPlayed: number;
   gamesWon: number;
   totalMoney: number;
+  gems: number;
   timePlayedHours: number;
   elo: number;
 }
 
 export interface LoginRequest {
   username: string;
+  email?: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
   email: string;
+  password: string;
 }
 
 export interface CreateGameRequest {
@@ -85,9 +93,32 @@ export interface BoardSpace {
   name: string;
   position: number;
   type: string;
+  description?: string;
   propertyId?: number;
   property?: Property;
   actionAmount?: number;
+}
+
+export interface ShopProduct {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  currency: 'pts' | 'gems';
+  category: 'avatar' | 'theme';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  preview: string;
+}
+
+export interface InventoryItem {
+  productId: number;
+  name: string;
+  description: string;
+  category: 'avatars' | 'themes';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  preview: string;
+  equipped: boolean;
+  quantity: number;
 }
 
 // API Service
@@ -121,28 +152,17 @@ class ApiService {
 
   // User endpoints
   async login(request: LoginRequest): Promise<User> {
-    try {
-      return await this.request<User>('/users/login', {
-        method: 'POST',
-        body: JSON.stringify(request),
-      });
-    } catch (err) {
-      // Fallback for offline/dev mode: return a simulated user so UI can function
-      console.warn('API login failed, falling back to local user:', err);
-      const fallbackUser: User = {
-        id: -1,
-        username: request.username,
-        email: request.email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(request.username)}`,
-        level: 'Novato',
-        gamesPlayed: 0,
-        gamesWon: 0,
-        totalMoney: 1500,
-        timePlayedHours: 0,
-        elo: 1000,
-      };
-      return fallbackUser;
-    }
+    return this.request<User>('/users/login', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async register(request: RegisterRequest): Promise<User> {
+    return this.request<User>('/users/register', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
   }
 
   async getUser(id: number): Promise<User> {
@@ -233,6 +253,15 @@ class ApiService {
     return this.request(`/gameactions/pay-rent?fromPlayerId=${fromPlayerId}&toPlayerId=${toPlayerId}&amount=${amount}`, {
       method: 'POST',
     });
+  }
+
+  // Shop endpoints
+  async getShopProducts(): Promise<ShopProduct[]> {
+    return this.request<ShopProduct[]>('/shop/products');
+  }
+
+  async getInventory(userId: number): Promise<InventoryItem[]> {
+    return this.request<InventoryItem[]>(`/shop/inventory/${userId}`);
   }
 }
 

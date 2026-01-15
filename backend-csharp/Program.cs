@@ -26,10 +26,23 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<MonopolyDbContext>(options =>
     options.UseInMemoryDatabase("MonopolyDB"));
 
+// Configure MySQL Database (Docker) for catalog/user data
+var mySqlConnectionString = builder.Configuration.GetConnectionString("MySql")
+    ?? builder.Configuration["MYSQL_CONNECTION_STRING"];
+
+if (string.IsNullOrWhiteSpace(mySqlConnectionString))
+{
+    throw new InvalidOperationException(
+        "Missing MySQL connection string. Set ConnectionStrings:MySql in appsettings.json or the MYSQL_CONNECTION_STRING environment variable.");
+}
+
+builder.Services.AddDbContext<MonopolyMySqlDbContext>(options =>
+    options.UseMySql(mySqlConnectionString, ServerVersion.AutoDetect(mySqlConnectionString)));
+
 // Register Services
-builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserService, MySqlUserService>();
 builder.Services.AddScoped<IGameService, GameService>();
-builder.Services.AddScoped<IBoardService, BoardService>();
+builder.Services.AddScoped<IBoardService, MySqlBoardService>();
 builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
 
 var app = builder.Build();
@@ -46,12 +59,5 @@ app.UseCors("AllowFrontend");
 app.UseAuthorization();
 
 app.MapControllers();
-
-// Initialize Board data
-using (var scope = app.Services.CreateScope())
-{
-    var boardService = scope.ServiceProvider.GetRequiredService<IBoardService>();
-    boardService.InitializeBoard();
-}
 
 app.Run();
