@@ -43,6 +43,7 @@ builder.Services.AddDbContext<MonopolyMySqlDbContext>(options =>
 builder.Services.AddScoped<IUserService, MySqlUserService>();
 builder.Services.AddScoped<IGameService, GameService>();
 builder.Services.AddScoped<IBoardService, MySqlBoardService>();
+builder.Services.AddScoped<ICardService, CardService>();
 builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
 
 var app = builder.Build();

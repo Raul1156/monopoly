@@ -99,6 +99,18 @@ export interface BoardSpace {
   actionAmount?: number;
 }
 
+export interface Card {
+  id: number;
+  type: string; // COMUNIDAD | SUERTE
+  description: string;
+  effect: string; // ganar_dinero | perder_dinero | cobrar_jugadores | pagar_jugadores
+  value: number;
+}
+
+export interface CardDraw {
+  card: Card;
+}
+
 export interface ShopProduct {
   id: number;
   name: string;
@@ -223,6 +235,17 @@ class ApiService {
 
   async getPropertyByPosition(position: number): Promise<Property> {
     return this.request<Property>(`/board/properties/${position}`);
+  }
+
+  // Cards endpoints
+  async drawCommunityCard(): Promise<Card> {
+    const res = await this.request<CardDraw>('/cards/community/draw');
+    return res.card;
+  }
+
+  async drawLuckCard(): Promise<Card> {
+    const res = await this.request<CardDraw>('/cards/luck/draw');
+    return res.card;
   }
 
   // Game actions

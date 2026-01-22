@@ -4,12 +4,22 @@ import { Button } from './ui/button';
 export interface Property {
   id: number;
   nombre: string;
-  tipo: 'propiedad' | 'estacion' | 'compañia' | 'hacienda' | 'loteria' | 'carcel' | 'irCarcel' | 'casino' | 'inicio' | 'impuesto';
+  tipo: 'propiedad' | 'estacion' | 'compañia' | 'comunidad' | 'suerte' | 'hacienda' | 'loteria' | 'carcel' | 'irCarcel' | 'casino' | 'inicio' | 'impuesto';
   precio?: number;
   cantidad?: number;
   dueno?: string;
   nivel?: number; // Para casas/hoteles
   alquiler?: number; // Alquiler que cobran
+
+  // Cartas (COMUNIDAD / SUERTE)
+  cardLoading?: boolean;
+  card?: {
+    id: number;
+    type: string;
+    description: string;
+    effect: string;
+    value: number;
+  };
 }
 
 interface PropertyCardModalProps {
@@ -62,6 +72,9 @@ export function PropertyCardModal({
       propiedad: { bg: 'bg-orange-600', border: 'border-orange-500', text: 'text-orange-100' },
       estacion: { bg: 'bg-gray-600', border: 'border-gray-500', text: 'text-gray-100' },
       compañia: { bg: 'bg-purple-600', border: 'border-purple-500', text: 'text-purple-100' },
+      comunidad: { bg: 'bg-green-600', border: 'border-green-500', text: 'text-green-100' },
+      suerte: { bg: 'bg-blue-600', border: 'border-blue-500', text: 'text-blue-100' },
+      // compatibilidad legacy
       hacienda: { bg: 'bg-green-600', border: 'border-green-500', text: 'text-green-100' },
       loteria: { bg: 'bg-blue-600', border: 'border-blue-500', text: 'text-blue-100' },
       carcel: { bg: 'bg-red-700', border: 'border-red-600', text: 'text-red-100' },
@@ -135,17 +148,37 @@ export function PropertyCardModal({
             )}
 
             {/* CASILLAS ESPECIALES */}
-            {property.tipo === 'hacienda' && (
+            {(property.tipo === 'comunidad' || property.tipo === 'hacienda') && (
               <div className="text-center py-4 border-t-2 border-gray-300">
-                <p className="text-lg font-bold text-green-700">🎲 HACIENDA</p>
-                <p className="text-xs text-gray-600 mt-2">¡Vuelve a tirar!</p>
+                <p className="text-lg font-bold text-green-700">📦 CAJA DE COMUNIDAD</p>
+
+                {property.cardLoading ? (
+                  <p className="text-xs text-gray-600 mt-2">Robando carta…</p>
+                ) : property.card ? (
+                  <>
+                    <p className="text-sm text-gray-800 mt-3 font-semibold">{property.card.description}</p>
+                    <p className="text-xs text-gray-600 mt-2">Efecto: {property.card.effect} ({property.card.value})</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-2">No se pudo cargar la carta</p>
+                )}
               </div>
             )}
 
-            {property.tipo === 'loteria' && (
+            {(property.tipo === 'suerte' || property.tipo === 'loteria') && (
               <div className="text-center py-4 border-t-2 border-gray-300">
-                <p className="text-lg font-bold text-blue-700">🎰 LOTERÍA</p>
-                <p className="text-xs text-gray-600 mt-2">Saca una tarjeta de suerte</p>
+                <p className="text-lg font-bold text-blue-700">🎴 SUERTE</p>
+
+                {property.cardLoading ? (
+                  <p className="text-xs text-gray-600 mt-2">Robando carta…</p>
+                ) : property.card ? (
+                  <>
+                    <p className="text-sm text-gray-800 mt-3 font-semibold">{property.card.description}</p>
+                    <p className="text-xs text-gray-600 mt-2">Efecto: {property.card.effect} ({property.card.value})</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-2">No se pudo cargar la carta</p>
+                )}
               </div>
             )}
 

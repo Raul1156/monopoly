@@ -13,6 +13,7 @@ public class MonopolyMySqlDbContext : DbContext
     public DbSet<UsuarioEntity> Usuarios => Set<UsuarioEntity>();
     public DbSet<CasillaEntity> Casillas => Set<CasillaEntity>();
     public DbSet<PropiedadEntity> Propiedades => Set<PropiedadEntity>();
+    public DbSet<CartaEntity> Cartas => Set<CartaEntity>();
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
     public DbSet<InventarioEntity> Inventario => Set<InventarioEntity>();
 
@@ -74,6 +75,18 @@ public class MonopolyMySqlDbContext : DbContext
                 .WithOne(c => c.Propiedad)
                 .HasForeignKey<PropiedadEntity>(e => e.CasillaId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CartaEntity>(entity =>
+        {
+            entity.ToTable("cartas");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion").IsRequired();
+            entity.Property(e => e.Efecto).HasColumnName("efecto").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Valor).HasColumnName("valor").IsRequired();
+
+            entity.HasIndex(e => e.Tipo);
         });
 
         modelBuilder.Entity<ProductoEntity>(entity =>

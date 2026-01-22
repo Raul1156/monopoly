@@ -44,10 +44,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           case 'COMPANIA':
             return 'compañia';
           case 'COMUNIDAD':
-            return 'hacienda';
+            return 'comunidad';
           case 'SUERTE':
           case 'LOTERIA':
-            return 'loteria';
+            return 'suerte';
           case 'CARCEL':
             return 'carcel';
           case 'IR_CARCEL':
@@ -236,6 +236,90 @@ const boardPositions = [
           const property = boardProperties[newPosition];
           
           if (property) {
+            const isCommunity = property.tipo === 'comunidad' || property.tipo === 'hacienda';
+            const isLuck = property.tipo === 'suerte' || property.tipo === 'loteria';
+
+            const applyCardLocally = (card: { effect: string; value: number; description: string }) => {
+              setPlayersInGame((prev) => {
+                const triggerId = currentPlayer;
+                const updated = prev.map((p) => ({ ...p }));
+
+                const trigger = updated.find((p) => p.id === triggerId);
+                if (!trigger) return prev;
+
+                const others = updated.filter((p) => p.id !== triggerId);
+
+                const clamp = (n: number) => Math.max(0, n);
+
+                switch (card.effect) {
+                  case 'ganar_dinero':
+                    trigger.money += card.value;
+                    break;
+
+                  case 'perder_dinero':
+                    trigger.money = clamp(trigger.money - card.value);
+                    break;
+
+                  case 'cobrar_jugadores': {
+                    let total = 0;
+                    for (const p of others) {
+                      const paid = Math.min(card.value, p.money);
+                      p.money -= paid;
+                      total += paid;
+                    }
+                    trigger.money += total;
+                    break;
+                  }
+
+                  case 'pagar_jugadores': {
+                    let remaining = trigger.money;
+                    for (const p of others) {
+                      const paid = Math.min(card.value, remaining);
+                      p.money += paid;
+                      remaining -= paid;
+                      if (remaining <= 0) break;
+                    }
+                    trigger.money = remaining;
+                    break;
+                  }
+
+                  default:
+                    console.warn('Efecto de carta no soportado en frontend:', card.effect);
+                    break;
+                }
+
+                return updated;
+              });
+            };
+
+            if (isCommunity || isLuck) {
+              // Mostrar modal con estado de carga y luego rellenarlo con la carta
+              const withLoading = { ...property, cardLoading: true, card: undefined };
+              setSelectedProperty(withLoading);
+              setShowPropertyModal(true);
+
+              const draw = isCommunity ? apiService.drawCommunityCard() : apiService.drawLuckCard();
+              draw
+                .then((card) => {
+                  applyCardLocally(card);
+                  setSelectedProperty((prevSel) => (prevSel ? { ...prevSel, cardLoading: false, card } : prevSel));
+
+                  // Feedback rápido
+                  if (card.effect === 'ganar_dinero' || card.effect === 'cobrar_jugadores') {
+                    toast.success(card.description);
+                  } else {
+                    toast.error(card.description);
+                  }
+                })
+                .catch((e) => {
+                  console.error('Error robando carta:', e);
+                  setSelectedProperty((prevSel) => (prevSel ? { ...prevSel, cardLoading: false } : prevSel));
+                  toast.error('No se pudo robar una carta de la base de datos');
+                });
+
+              return;
+            }
+
             // Verificar si la propiedad está comprada por otro jugador
             const propertyOwner = playersInGame.find(p => 
               p.properties.some(prop => prop.propertyId === newPosition)
