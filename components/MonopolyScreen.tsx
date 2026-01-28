@@ -107,7 +107,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
     { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
     { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
-    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
+    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[] },
   ]);
 
   // Coordenadas del tablero 
