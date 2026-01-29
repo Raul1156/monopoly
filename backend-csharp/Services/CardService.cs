@@ -26,15 +26,30 @@ public class CardService : ICardService
     {
         var normalized = NormalizeType(type);
 
-        // MySQL: use ORDER BY RAND() LIMIT 1 for truly random row selection.
-        // This avoids provider quirks where Skip/Count could lead to repeating the same row.
-        var card = await _mySql.Cartas
-            .FromSqlInterpolated($"SELECT * FROM cartas WHERE tipo = {normalized} ORDER BY RAND() LIMIT 1")
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
+        // Prefer MySQL-side random selection to avoid repeating the same card.
+        CartaEntity? card = null;
 
+        if (IsMySqlProvider())
+        {
+            card = await _mySql.Cartas
+                .FromSqlInterpolated($"SELECT * FROM cartas WHERE tipo = {normalized} ORDER BY RAND() LIMIT 1")
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+        }
+
+        // Fallback: shuffle in C# if provider doesn't support RAND() or returns no row.
         if (card == null)
-            throw new InvalidOperationException($"No hay cartas del tipo {normalized}");
+        {
+            var cards = await _mySql.Cartas
+                .Where(c => c.Tipo == normalized)
+                .AsNoTracking()
+                .ToListAsync();
+
+            if (cards.Count == 0)
+                throw new InvalidOperationException($"No hay cartas del tipo {normalized}");
+
+            card = cards[Random.Shared.Next(cards.Count)];
+        }
 
         return MapToDto(card);
     }
@@ -158,4 +173,7 @@ public class CardService : ICardService
         Effect = c.Efecto,
         Value = c.Valor
     };
+
+    private bool IsMySqlProvider()
+        => _mySql.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true;
 }
