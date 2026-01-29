@@ -347,16 +347,26 @@ const boardPositions = [
                 prev.map((player) => {
                   if (player.id === currentPlayer) {
                     // Descontar alquiler al jugador actual
-                    return { ...player, money: player.money - rentAmount };
+                    const newMoney = Math.max(0, player.money - rentAmount);
+                    return { ...player, money: newMoney };
                   } else if (player.id === propertyOwner.id) {
                     // Dar alquiler al propietario
-                    return { ...player, money: player.money + rentAmount };
+                    const newMoney = player.money + rentAmount;
+                    return { ...player, money: newMoney };
                   }
                   return player;
                 })
               );
 
-              toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
+              // Verificar si el jugador quedó en bancarrota
+              const currentPlayerAfterRent = playersInGame.find((p) => p.id === currentPlayer);
+              const newMoneyAfterRent = Math.max(0, (currentPlayerAfterRent?.money ?? 0) - rentAmount);
+
+              if (newMoneyAfterRent <= 0) {
+                toast.error(`💥 ¡${playersInGame.find((p) => p.id === currentPlayer)?.name} ha quedado en bancarrota!`);
+              } else {
+                toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
+              }
               
               // Añadir dueño a la propiedad para mostrar en el modal
               property.dueno = propertyOwner.name;
@@ -395,33 +405,72 @@ const boardPositions = [
 
     // Actualizar dinero y propiedades del jugador
     setPlayersInGame((prev) =>
-      prev.map((player) =>
-        player.id === currentPlayer
-          ? {
-              ...player,
-              money: player.money - (property.precio || 0),
-              properties: [...player.properties, { propertyId, level: 0 }]
-            }
-          : player
-      )
+      prev.map((player) => {
+        if (player.id === currentPlayer) {
+          const newMoney = player.money - (property.precio || 0);
+          return {
+            ...player,
+            money: Math.max(0, newMoney),
+            properties: [...player.properties, { propertyId, level: 0 }]
+          };
+        }
+        return player;
+      })
     );
+
+    const newMoneyAfterPurchase = currentPlayerData.money - (property.precio || 0);
+    
+    toast.success(`✅ Compraste ${property.nombre} por ${property.precio} pts`);
+    
+    // Verificar si quedó en bancarrota
+    if (newMoneyAfterPurchase <= 0) {
+      toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
+    }
 
     // Marcar la propiedad como comprada
     boardProperties[propertyId].dueno = currentPlayerData.name;
-
-    toast.success(`✓ ¡Compraste ${property.nombre}!`);
   };
 
   const handlePassProperty = () => {
     toast.info("Decidiste no comprar esta propiedad");
   };
 
-  // Cambiar turno al cerrar modal
+  // Cambiar turno al cerrar modal - solo a jugadores activos
   const handleClosePropertyModal = () => {
     setShowPropertyModal(false);
     // Cambiar turno después de que se cierre el modal
     setTimeout(() => {
-      setCurrentPlayer((prev) => (prev % playersInGame.length) + 1);
+      setCurrentPlayer((prev) => {
+        // Obtener los jugadores activos (no eliminados) ordenados por ID
+        const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
+        
+        if (activePlayers.length === 0) {
+          toast.error("No hay jugadores activos en la partida");
+          return prev;
+        }
+
+        // Si solo queda un jugador, mostrar mensaje
+        if (activePlayers.length === 1) {
+          toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
+          return activePlayers[0];
+        }
+
+        // Encontrar el índice del jugador actual en la lista de activos
+        const currentIndex = activePlayers.indexOf(prev);
+        
+        // Si el jugador actual no está en la lista de activos (fue eliminado), buscar el siguiente disponible
+        if (currentIndex === -1) {
+          return activePlayers[0];
+        }
+
+        // Si es el último jugador activo, volver al primero
+        if (currentIndex === activePlayers.length - 1) {
+          return activePlayers[0];
+        }
+
+        // Si no, ir al siguiente jugador activo
+        return activePlayers[currentIndex + 1];
+      });
       setDice1(null);
       setHasRolledDice(false);
     }, 150);
@@ -459,7 +508,7 @@ const boardPositions = [
             <div>
               <h2 className="text-white font-bold">Monopoly Casino y Tapas</h2>
               <p className="text-amber-400 text-sm">
-                Turno de {playersInGame[currentPlayer - 1]?.name}
+                Turno de {playersInGame.find((p) => p.id === currentPlayer && p.money > 0)?.name || "Jugador eliminado"}
               </p>
             </div>
           </div>
@@ -513,6 +562,11 @@ const boardPositions = [
             const offsetX = (idx % 2) * 10 - 5;
             const offsetY = Math.floor(idx / 2) * 10 - 5;
 
+            // Solo mostrar si el jugador sigue activo
+            if (player.money <= 0) {
+              return null;
+            }
+
             return (
               <div
                 key={player.id}
@@ -539,23 +593,30 @@ const boardPositions = [
       <div className="bg-black/40 backdrop-blur-sm rounded-lg border border-amber-500/30 p-3 space-y-3">
         {/* Jugadores */}
         <div className="grid grid-cols-4 gap-2">
-          {playersInGame.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => setSelectedPlayerForProperties(p.id)}
-              className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${
-                currentPlayer === p.id
-                  ? "border-amber-500 bg-amber-500/20"
-                  : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
-              }`}
-              title={`Click para ver propiedades de ${p.name}`}
-            >
-              <div className={`w-4 h-4 rounded-full ${p.color} mx-auto mb-1`} />
-              <p className="text-white text-xs font-medium">{p.name}</p>
-              <p className="text-amber-400 text-xs">{p.money} pts</p>
-              <p className="text-gray-400 text-[10px] mt-1">🏠 {p.properties.length}</p>
-            </div>
-          ))}
+          {playersInGame.map((p) => {
+            const isActive = p.money > 0;
+            return (
+              <div
+                key={p.id}
+                onClick={() => isActive && setSelectedPlayerForProperties(p.id)}
+                className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${
+                  !isActive
+                    ? "border-gray-600/50 bg-black/40 opacity-50"
+                    : currentPlayer === p.id
+                    ? "border-amber-500 bg-amber-500/20"
+                    : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
+                }`}
+                title={isActive ? `Click para ver propiedades de ${p.name}` : `${p.name} - ¡ELIMINADO!`}
+              >
+                <div className={`w-4 h-4 rounded-full ${p.color} mx-auto mb-1`} />
+                <p className="text-white text-xs font-medium">{p.name}</p>
+                <p className={`text-xs font-bold ${isActive ? "text-amber-400" : "text-red-500"}`}>
+                  {isActive ? `${p.money} pts` : "ELIMINADO"}
+                </p>
+                <p className="text-gray-400 text-[10px] mt-1">🏠 {p.properties.length}</p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Botones */}

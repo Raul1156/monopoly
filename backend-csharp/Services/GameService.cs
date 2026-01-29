@@ -13,6 +13,8 @@ public interface IGameService
     Task<GameDto> JoinGame(int gameId, int userId, string token);
     Task<GameDto> StartGame(int gameId);
     Task<PlayerInGameDto?> GetPlayerInGame(int gameId, int playerId);
+    Task<PlayerInGameDto?> GetNextActivePlayers(int gameId, int currentTurnOrder);
+    Task<bool> CheckAndEliminateInactivePlayers(int gameId);
 }
 
 public class GameService : IGameService
@@ -190,4 +192,64 @@ public class GameService : IGameService
             }).ToList()
         };
     }
+
+    public async Task<PlayerInGameDto?> GetNextActivePlayers(int gameId, int currentTurnOrder)
+    {
+        var game = await _context.Games
+            .Include(g => g.Players)
+                .ThenInclude(p => p.User)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game == null)
+            return null;
+
+        var activePlayers = game.Players
+            .Where(p => !p.IsBankrupt)
+            .OrderBy(p => p.TurnOrder)
+            .ToList();
+
+        if (activePlayers.Count == 0)
+            return null;
+
+        // Find the next active player after the current turn order
+        var nextPlayer = activePlayers.FirstOrDefault(p => p.TurnOrder > currentTurnOrder);
+        
+        // If no player found with higher turn order, start from the beginning
+        if (nextPlayer == null)
+            nextPlayer = activePlayers.First();
+
+        var nextPlayerFull = await _context.PlayersInGame
+            .Include(p => p.User)
+            .Include(p => p.OwnedProperties)
+                .ThenInclude(po => po.Property)
+            .FirstOrDefaultAsync(p => p.Id == nextPlayer.Id);
+
+        return nextPlayerFull != null ? MapToPlayerDto(nextPlayerFull) : null;
+    }
+
+    public async Task<bool> CheckAndEliminateInactivePlayers(int gameId)
+    {
+        var game = await _context.Games
+            .Include(g => g.Players)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game == null)
+            return false;
+
+        var inactivePlayers = game.Players
+            .Where(p => p.Money <= 0 && !p.IsBankrupt)
+            .ToList();
+
+        if (inactivePlayers.Count == 0)
+            return false;
+
+        foreach (var player in inactivePlayers)
+        {
+            player.IsBankrupt = true;
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
 }

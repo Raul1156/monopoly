@@ -83,4 +83,29 @@ public class GamesController : ControllerBase
 
         return Ok(player);
     }
+
+    [HttpGet("{gameId}/next-player")]
+    public async Task<ActionResult<PlayerInGameDto>> GetNextActivePlayer([FromQuery] int gameId, [FromQuery] int currentTurnOrder)
+    {
+        var nextPlayer = await _gameService.GetNextActivePlayers(gameId, currentTurnOrder);
+        if (nextPlayer == null)
+            return NotFound("No active players found");
+
+        return Ok(nextPlayer);
+    }
+
+    [HttpPost("{gameId}/check-eliminated")]
+    public async Task<ActionResult> CheckAndEliminateInactivePlayers(int gameId)
+    {
+        try
+        {
+            var hasEliminated = await _gameService.CheckAndEliminateInactivePlayers(gameId);
+            var game = await _gameService.GetGame(gameId);
+            return Ok(new { message = "Checked for inactive players", playersEliminated = hasEliminated, game = game });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }

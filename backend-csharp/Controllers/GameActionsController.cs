@@ -205,6 +205,9 @@ public class GameActionsController : ControllerBase
             if (player == null)
                 return NotFound("Player not found");
 
+            if (player.IsBankrupt)
+                return BadRequest("Bankrupt player cannot buy properties");
+
             var property = await _context.Properties
                 .FirstOrDefaultAsync(p => p.Id == dto.PropertyId);
 
@@ -241,29 +244,46 @@ public class GameActionsController : ControllerBase
     }
 
     [HttpPost("pay-rent")]
-    public async Task<ActionResult> PayRent([FromQuery] int fromPlayerId, [FromQuery] int toPlayerId, [FromQuery] int amount)
+    public async Task<ActionResult> PayRent([FromQuery] int fromPlayerId, [FromQuery] int toPlayerId, [FromQuery] int amount, [FromQuery] int gameId)
     {
         try
         {
-            var fromPlayer = await _context.PlayersInGame.FindAsync(fromPlayerId);
-            var toPlayer = await _context.PlayersInGame.FindAsync(toPlayerId);
+            var fromPlayer = await _context.PlayersInGame
+                .FirstOrDefaultAsync(p => p.Id == fromPlayerId && p.GameId == gameId);
+            var toPlayer = await _context.PlayersInGame
+                .FirstOrDefaultAsync(p => p.Id == toPlayerId && p.GameId == gameId);
 
             if (fromPlayer == null || toPlayer == null)
                 return NotFound("Player not found");
 
+            if (fromPlayer.IsBankrupt)
+                return BadRequest("Player is already bankrupt");
+
             if (fromPlayer.Money < amount)
             {
-                fromPlayer.IsBankrupt = true;
+                // Pagar lo que puede
+                toPlayer.Money += fromPlayer.Money;
                 fromPlayer.Money = 0;
+                fromPlayer.IsBankrupt = true;
                 await _context.SaveChangesAsync();
-                return Ok(new { message = "Player bankrupt", isBankrupt = true });
+                
+                return Ok(new { 
+                    message = "Player bankrupt and eliminated from the game", 
+                    isBankrupt = true,
+                    playerEliminatedId = fromPlayerId,
+                    transferredAmount = fromPlayer.Money
+                });
             }
 
             fromPlayer.Money -= amount;
             toPlayer.Money += amount;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Rent paid successfully", fromPlayerMoney = fromPlayer.Money, toPlayerMoney = toPlayer.Money });
+            return Ok(new { 
+                message = "Rent paid successfully", 
+                fromPlayerMoney = fromPlayer.Money, 
+                toPlayerMoney = toPlayer.Money 
+            });
         }
         catch (Exception ex)
         {
