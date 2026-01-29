@@ -327,7 +327,21 @@ const boardPositions = [
 
             if (propertyOwner && propertyOwner.id !== currentPlayer) {
               // Cobrar alquiler
-              const rentAmount = property.alquiler || 0;
+              const isCompany = property.tipo === 'compañia';
+              let rentAmount = property.alquiler || 0;
+
+              if (isCompany) {
+                const companyPositions = boardProperties
+                  .map((p, idx) => (p?.tipo === 'compañia' ? idx : null))
+                  .filter((v): v is number => v !== null);
+
+                const ownerCompanyCount = propertyOwner.properties.filter((prop) =>
+                  companyPositions.includes(prop.propertyId)
+                ).length;
+
+                const multiplier = ownerCompanyCount >= 2 ? 10 : 4;
+                rentAmount = diceTotal * multiplier;
+              }
               
               setPlayersInGame((prev) =>
                 prev.map((player) => {
