@@ -256,35 +256,49 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
       // Check Go To Jail (Cell 30)
       if (newPosition === 30) {
-        newPosition = 10; // Jail cell
         sentToJail = true;
         passedGo = false; // No passing go reward
       }
 
+      // Step 1: Move to destination (even if it's 30)
       setPlayersInGame((prev) =>
         prev.map((player) =>
           player.id === currentPlayer
             ? {
               ...player,
               position: newPosition,
-              // Si pasó por la salida (posición 0), suma 200, salvo si va a la carcel
               money: passedGo ? player.money + 200 : player.money,
-              isInJail: sentToJail,
-              jailTurns: sentToJail ? 3 : player.isInJail ? player.jailTurns : 0
+              // If sent to jail, we don't set the flag YET, we wait for the animation/toast
             }
             : player
         )
       );
 
       if (sentToJail) {
-        toast.error("👮 ¡Has sido enviado a la cárcel! (3 turnos sin jugar)");
-        // End turn automatically after a delay or let them see the board?
-        // Usually we show the animation/toast and then end turn.
-        // But the original code waits for property modal. 
-        // We should skip property modal if sent to jail.
-        endTurn();
+        // Show immediate feedback for landing on 30
+        toast.error("👮 ¡Has caído en la casilla de ir a la cárcel!");
+
+        // Step 2: Delay, then move to 10 and set Jail state
+        setTimeout(() => {
+          setPlayersInGame((prev) =>
+            prev.map((player) =>
+              player.id === currentPlayer
+                ? {
+                  ...player,
+                  position: 10,
+                  isInJail: true,
+                  jailTurns: 3
+                }
+                : player
+            )
+          );
+          toast.error("🔒 Te vas a la cárcel. 3 turnos sin jugar.");
+          endTurn();
+        }, 1500); // 1.5s delay to let them see they landed on 30
+
         return;
       }
+
 
       if (passedGo) {
         toast.success("🎉 ¡Pasaste por la salida! +200 pts");
@@ -702,7 +716,15 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 <p className={`text-xs font-bold ${isActive ? "text-amber-400" : "text-red-500"}`}>
                   {isActive ? `${p.money} pts` : "ELIMINADO"}
                 </p>
-                <p className="text-gray-400 text-[10px] mt-1">🏠 {p.properties.length}</p>
+                {/* Jail Indicator */}
+                {p.isInJail && (
+                  <Badge variant="destructive" className="mt-1 text-[10px] h-4 px-1 py-0 bg-red-900 border-red-500 text-red-100">
+                    En la cárcel
+                  </Badge>
+                )}
+                {!p.isInJail && (
+                  <p className="text-gray-400 text-[10px] mt-1">🏠 {p.properties.length}</p>
+                )}
               </div>
             );
           })}
