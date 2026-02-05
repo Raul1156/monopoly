@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\MonopolyAPI.csproj": {}
+    "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\MonopolyAPI.csproj": {}
   },
   "projects": {
-    "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\MonopolyAPI.csproj": {
+    "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\MonopolyAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\MonopolyAPI.csproj",
+        "projectUniqueName": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\MonopolyAPI.csproj",
         "projectName": "MonopolyAPI",
-        "projectPath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\MonopolyAPI.csproj",
+        "projectPath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\MonopolyAPI.csproj",
         "packagesPath": "C:\\Users\\irush\\.nuget\\packages\\",
-        "outputPath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\obj\\",
+        "outputPath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

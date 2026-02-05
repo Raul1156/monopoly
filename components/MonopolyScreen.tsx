@@ -109,10 +109,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
   // Jugadores: todos empiezan en la casilla 0 
   const [playersInGame, setPlayersInGame] = useState([
-    { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
-    { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
-    { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[] },
-    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[] },
+    { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
+    { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
+    { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
+    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
   ]);
 
   // Coordenadas del tablero 
@@ -168,6 +168,41 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       return;
     }
 
+    const currentPlayerData = playersInGame[currentPlayer - 1];
+    if (!currentPlayerData) return;
+
+    // 1. Check Jail Status
+    if (currentPlayerData.isInJail) {
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          if (player.id === currentPlayer) {
+            const newTurns = player.jailTurns - 1;
+            // If turns reach 0, they are free for the local logic (will move next time normally)
+            // Or we could let them move immediately if we want "Roll doubles to exit" logic, 
+            // but requirements say "3 whole turns".
+            const stillInJail = newTurns > 0;
+            return {
+              ...player,
+              jailTurns: Math.max(0, newTurns),
+              isInJail: stillInJail
+            };
+          }
+          return player;
+        })
+      );
+
+      const remaining = currentPlayerData.jailTurns - 1;
+      if (remaining > 0) {
+        toast.error(`⛓️ Sigues en la cárcel. Turnos restantes: ${remaining}`);
+      } else {
+        toast.info("🎉 ¡Has cumplido tu condena! Podrás moverte en el siguiente turno.");
+      }
+
+      // Consume turn immediately
+      endTurn();
+      return;
+    }
+
     try {
       let rawValue: number | null = null;
 
@@ -209,14 +244,22 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       toast.success(`🎲 Sacaste ${singleDie}`);
 
       // Calcular nueva posición
-      const currentPlayerData = playersInGame[currentPlayer - 1];
+      const currentPlayerData = playersInGame[currentPlayer - 1]; // Re-select to be safe, though used above
       if (!currentPlayerData) {
         console.error("No se encontró el jugador actual");
         return;
       }
 
-      const newPosition = (currentPlayerData.position + diceTotal) % 40;
-      const passedGo = newPosition < currentPlayerData.position;
+      let newPosition = (currentPlayerData.position + diceTotal) % 40;
+      let passedGo = newPosition < currentPlayerData.position;
+      let sentToJail = false;
+
+      // Check Go To Jail (Cell 30)
+      if (newPosition === 30) {
+        newPosition = 10; // Jail cell
+        sentToJail = true;
+        passedGo = false; // No passing go reward
+      }
 
       setPlayersInGame((prev) =>
         prev.map((player) =>
@@ -224,12 +267,24 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             ? {
               ...player,
               position: newPosition,
-              // Si pasó por la salida (posición 0), suma 200
+              // Si pasó por la salida (posición 0), suma 200, salvo si va a la carcel
               money: passedGo ? player.money + 200 : player.money,
+              isInJail: sentToJail,
+              jailTurns: sentToJail ? 3 : player.isInJail ? player.jailTurns : 0
             }
             : player
         )
       );
+
+      if (sentToJail) {
+        toast.error("👮 ¡Has sido enviado a la cárcel! (3 turnos sin jugar)");
+        // End turn automatically after a delay or let them see the board?
+        // Usually we show the animation/toast and then end turn.
+        // But the original code waits for property modal. 
+        // We should skip property modal if sent to jail.
+        endTurn();
+        return;
+      }
 
       if (passedGo) {
         toast.success("🎉 ¡Pasaste por la salida! +200 pts");
@@ -635,10 +690,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 key={p.id}
                 onClick={() => isActive && setSelectedPlayerForProperties(p.id)}
                 className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${!isActive
-                    ? "border-gray-600/50 bg-black/40 opacity-50"
-                    : currentPlayer === p.id
-                      ? "border-amber-500 bg-amber-500/20"
-                      : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
+                  ? "border-gray-600/50 bg-black/40 opacity-50"
+                  : currentPlayer === p.id
+                    ? "border-amber-500 bg-amber-500/20"
+                    : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
                   }`}
                 title={isActive ? `Click para ver propiedades de ${p.name}` : `${p.name} - ¡ELIMINADO!`}
               >

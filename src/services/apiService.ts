@@ -48,6 +48,7 @@ export interface PlayerInGame {
   money: number;
   position: number;
   isInJail: boolean;
+  jailTurns: number;
   isBankrupt: boolean;
   token: string;
   ownedProperties: PropertyOwnership[];

@@ -38,6 +38,34 @@ public class GameActionsController : ControllerBase
             if (player == null)
                 return NotFound("Player not found");
 
+            if (player.IsInJail)
+            {
+                player.JailTurns--;
+                if (player.JailTurns > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    return Ok(new MoveResultDto
+                    {
+                        NewPosition = player.Position,
+                        SpaceName = "Jail",
+                        SpaceType = "Jail",
+                        DiceRoll = new DiceRollDto { Dice1 = 0, Dice2 = 0, Total = 0, IsDouble = false },
+                        PassedGo = false,
+                        MoneyChange = 0,
+                        Message = $"En la cárcel. Turnos restantes: {player.JailTurns}"
+                    });
+                }
+                else
+                {
+                    player.IsInJail = false;
+                    // Player is free to move this turn? 
+                    // Rule choice: They skip 3 turns. On 4th they move. 
+                    // If we just released them, we can let the move proceed below or force them to wait 1 more turn.
+                    // Standard: You roll to get out or wait 3 turns. If you wait 3 turns, on the 3rd turn you MUST roll and move.
+                    // Simplified here: After 3 turns (JailTurns goes to 0), they are free and move normally THIS turn.
+                }
+            }
+
             DiceRollDto diceRoll;
             if (dice1.HasValue && dice2.HasValue)
             {
@@ -69,9 +97,10 @@ public class GameActionsController : ControllerBase
             {
                 player.Position = 10;
                 player.IsInJail = true;
-                player.JailTurns = 2; // provisional: set jail turns to 2
+                player.JailTurns = 3; // Fixed 3 turns
                 moveResult.NewPosition = 10;
                 moveResult.Message = "Has sido enviado a la cárcel";
+                moveResult.PassedGo = false; // Ensure no money added
             }
             else
             {
@@ -80,6 +109,12 @@ public class GameActionsController : ControllerBase
                 {
                     player.Money += 200;
                 }
+            }
+            
+            // If they just landed on Jail (Just Visiting), ensure IsInJail is false (unless they were already there)
+            if (moveResult.NewPosition == 10 && !player.IsInJail)
+            {
+                // Just visiting, do nothing special
             }
 
             await _context.SaveChangesAsync();

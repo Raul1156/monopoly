@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "FP+4yMIbsIM=",
+  "dgSpecHash": "uC24M4B15Is=",
   "success": true,
-  "projectFilePath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\INTENTO RULETA\\monopoly-monopolyRaul\\backend-csharp\\MonopolyAPI.csproj",
+  "projectFilePath": "C:\\Marce\\Instituto\\PROYECTO-MONOPOLY\\monopoly\\backend-csharp\\MonopolyAPI.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\irush\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",
     "C:\\Users\\irush\\.nuget\\packages\\azure.identity\\1.7.0\\azure.identity.1.7.0.nupkg.sha512",
