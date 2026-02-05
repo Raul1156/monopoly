@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { toast } from "sonner";
 
-export type RouletteBet = "rojo" | "negro" | "verde";
+export type RouletteBet = "rojo" | "negro" | "verde" | "numero";
 
 interface CasinoRouletteModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ const getColor = (num: number, wheelColors: RouletteBet[]): RouletteBet => {
 
 const getMultiplier = (bet: RouletteBet) => {
   if (bet === "verde") return 14;
+  if (bet === "numero") return 36;
   return 2;
 };
 
@@ -43,8 +45,8 @@ export function CasinoRouletteModal({
   const [spinning, setSpinning] = useState(false);
   const [resultNumber, setResultNumber] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
+  const [selectedNumber, setSelectedNumber] = useState(0);
 
-  const betOptions = useMemo(() => [25, 50, 100, 200, 300], []);
   const wheelColors = useMemo(() => buildWheelColors(), []);
   const segmentAngle = 360 / 37;
   const wheelGradient = useMemo(() => {
@@ -78,8 +80,8 @@ export function CasinoRouletteModal({
     const color = getColor(number, wheelColors);
     const multiplier = getMultiplier(betType);
 
-    const win = color === betType;
-    const delta = win ? betAmount * (multiplier - 1) : -betAmount;
+    const win = betType === "numero" ? number === selectedNumber : color === betType;
+    const delta = win ? betAmount * multiplier : -betAmount;
 
     const extraRotation = 360 * 4 + Math.floor(Math.random() * 360);
     const targetAngle = number * segmentAngle + segmentAngle / 2;
@@ -107,8 +109,8 @@ export function CasinoRouletteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-[95%] max-w-xl rounded-2xl border border-amber-500/40 bg-gradient-to-br from-zinc-900 via-zinc-800 to-amber-900/60 p-6 shadow-2xl">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-[99%] max-w-6xl max-h-[85vh] rounded-3xl border border-amber-500/50 bg-gradient-to-br from-zinc-950 via-zinc-900 to-amber-950/70 p-3 shadow-2xl">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-amber-200">🎰 {casinoName}</h2>
@@ -119,9 +121,10 @@ export function CasinoRouletteModal({
           </Button>
         </div>
 
-        <div className="mt-6 grid gap-6 md:grid-cols-[1.2fr_1fr]">
-          <div className="flex flex-col items-center justify-center gap-4">
-            <div className="relative h-56 w-56 rounded-full border-4 border-amber-400/70 bg-black">
+        <div className="mt-3 grid gap-3 md:grid-cols-[1.3fr_0.9fr_1fr]">
+          <div className="relative flex flex-col items-center justify-center gap-3 rounded-2xl border border-amber-500/30 bg-black/30 p-4">
+            <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.15),_transparent_60%)]" />
+            <div className="relative h-52 w-52 rounded-full border-4 border-amber-400/70 bg-black shadow-[0_0_40px_rgba(245,158,11,0.25)]">
               <div
                 className="absolute inset-2 rounded-full"
                 style={{
@@ -130,7 +133,7 @@ export function CasinoRouletteModal({
                   transition: spinning ? "transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1)" : "transform 0.4s ease"
                 }}
               />
-              <div className="absolute left-1/2 top-[-10px] h-5 w-5 -translate-x-1/2 rounded-full bg-amber-300 shadow-lg" />
+              <div className="absolute left-1/2 top-[-12px] h-6 w-6 -translate-x-1/2 rounded-full bg-amber-300 shadow-lg" />
               <div className="absolute inset-10 rounded-full border border-amber-300/60 bg-black/70" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="rounded-full bg-amber-300 px-3 py-1 text-xs font-bold text-zinc-900">
@@ -156,33 +159,43 @@ export function CasinoRouletteModal({
                 </p>
               </div>
             )}
+
+            <div className="flex items-center gap-3 text-xs text-amber-100/70">
+              <span className="rounded-full bg-amber-500/20 px-3 py-1">Mesa VIP</span>
+              <span className="rounded-full bg-emerald-500/20 px-3 py-1">Pago instantáneo</span>
+              <span className="rounded-full bg-red-500/20 px-3 py-1">Riesgo alto</span>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-xl border border-amber-500/30 bg-black/40 p-4">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-amber-500/30 bg-black/40 p-3">
               <p className="text-sm text-amber-100/80">Jugador</p>
               <p className="text-lg font-bold text-amber-200">{playerName}</p>
               <p className="text-xs text-amber-100/70">Saldo: {playerMoney} pts</p>
             </div>
 
-            <div className="rounded-xl border border-amber-500/30 bg-black/40 p-4">
-              <p className="text-sm text-amber-100/80">Apuesta</p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {betOptions.map((amount) => (
-                  <Button
-                    key={amount}
-                    variant="outline"
-                    className={`border-amber-500/40 text-amber-100 hover:bg-amber-500/10 ${
-                      betAmount === amount ? "bg-amber-500/20" : ""
-                    }`}
-                    onClick={() => setBetAmount(amount)}
-                  >
-                    {amount} pts
-                  </Button>
-                ))}
+            <div className="rounded-xl border border-amber-500/30 bg-black/40 p-3">
+              <p className="text-sm text-amber-100/80">Tipo de apuesta</p>
+              <div className="mt-2">
+                <label className="text-xs text-amber-100/70">Cantidad manual</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={playerMoney}
+                  value={Number.isNaN(betAmount) ? "" : betAmount}
+                  onChange={(event) => {
+                    const raw = Number(event.target.value);
+                    if (Number.isNaN(raw)) {
+                      setBetAmount(0);
+                      return;
+                    }
+                    setBetAmount(Math.max(0, Math.min(playerMoney, Math.floor(raw))));
+                  }}
+                  className="mt-2 border-amber-500/40 bg-black/30 text-amber-100"
+                  placeholder="Introduce apuesta"
+                />
               </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <Button
                   className={`w-full ${betType === "rojo" ? "bg-red-600" : "bg-red-600/30"}`}
                   onClick={() => setBetType("rojo")}
@@ -201,7 +214,14 @@ export function CasinoRouletteModal({
                 >
                   Verde (x14)
                 </Button>
+                <Button
+                  className={`w-full ${betType === "numero" ? "bg-amber-500" : "bg-amber-500/30"}`}
+                  onClick={() => setBetType("numero")}
+                >
+                  Número (x36)
+                </Button>
               </div>
+
             </div>
 
             <Button
@@ -213,8 +233,29 @@ export function CasinoRouletteModal({
             </Button>
 
             <p className="text-xs text-amber-100/70">
-              Rojo/Negro paga x2. Verde paga x14. Si pierdes, se descuenta la apuesta.
+              Rojo/Negro multiplica x2. Verde x14. Número x36. Si pierdes, se descuenta la apuesta.
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-amber-500/30 bg-black/40 p-3">
+            <p className="text-sm text-amber-100/80">Panel de números</p>
+            <p className="text-xs text-amber-100/60 mt-1">
+              Selecciona un número si apuestas a "Número".
+            </p>
+            <div className="mt-3 grid grid-cols-6 gap-2 max-h-[45vh] overflow-y-auto pr-1">
+              {Array.from({ length: 37 }, (_, n) => (
+                <Button
+                  key={n}
+                  variant="outline"
+                  className={`border-amber-500/40 text-amber-100 hover:bg-amber-500/10 ${
+                    selectedNumber === n ? "bg-amber-500/20" : ""
+                  }`}
+                  onClick={() => setSelectedNumber(n)}
+                >
+                  {n}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
