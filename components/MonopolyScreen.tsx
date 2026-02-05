@@ -8,6 +8,7 @@ import type { Screen } from "../src/App";
 import { PropertyCardModal, type Property } from "./PropertyCardModal";
 import { PlayerPropertiesModal } from "./PlayerPropertiesModal";
 import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/apiService";
+import { CasinoRouletteModal } from "./CasinoRouletteModal";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -26,6 +27,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [hasRolledDice, setHasRolledDice] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCasinoModal, setShowCasinoModal] = useState(false);
+  const [casinoName, setCasinoName] = useState<string | null>(null);
 
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
 
@@ -236,6 +239,12 @@ const boardPositions = [
           const property = boardProperties[newPosition];
           
           if (property) {
+            if (property.tipo === 'casino') {
+              setCasinoName(property.nombre);
+              setShowCasinoModal(true);
+              return;
+            }
+
             const isCommunity = property.tipo === 'comunidad' || property.tipo === 'hacienda';
             const isLuck = property.tipo === 'suerte' || property.tipo === 'loteria';
 
@@ -435,45 +444,69 @@ const boardPositions = [
     toast.info("Decidiste no comprar esta propiedad");
   };
 
-  // Cambiar turno al cerrar modal - solo a jugadores activos
-  const handleClosePropertyModal = () => {
-    setShowPropertyModal(false);
-    // Cambiar turno después de que se cierre el modal
+  const endTurn = () => {
     setTimeout(() => {
       setCurrentPlayer((prev) => {
-        // Obtener los jugadores activos (no eliminados) ordenados por ID
         const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
-        
+
         if (activePlayers.length === 0) {
           toast.error("No hay jugadores activos en la partida");
           return prev;
         }
 
-        // Si solo queda un jugador, mostrar mensaje
         if (activePlayers.length === 1) {
           toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
           return activePlayers[0];
         }
 
-        // Encontrar el índice del jugador actual en la lista de activos
         const currentIndex = activePlayers.indexOf(prev);
-        
-        // Si el jugador actual no está en la lista de activos (fue eliminado), buscar el siguiente disponible
+
         if (currentIndex === -1) {
           return activePlayers[0];
         }
 
-        // Si es el último jugador activo, volver al primero
         if (currentIndex === activePlayers.length - 1) {
           return activePlayers[0];
         }
 
-        // Si no, ir al siguiente jugador activo
         return activePlayers[currentIndex + 1];
       });
       setDice1(null);
       setHasRolledDice(false);
     }, 150);
+  };
+
+  // Cambiar turno al cerrar modal - solo a jugadores activos
+  const handleClosePropertyModal = () => {
+    setShowPropertyModal(false);
+    endTurn();
+  };
+
+  const handleCloseCasinoModal = () => {
+    setShowCasinoModal(false);
+    setCasinoName(null);
+    endTurn();
+  };
+
+  const handleCasinoResult = (delta: number) => {
+    let moneyAfter: number | null = null;
+    let currentName: string | null = null;
+
+    setPlayersInGame((prev) =>
+      prev.map((player) => {
+        if (player.id === currentPlayer) {
+          const updatedMoney = Math.max(0, player.money + delta);
+          moneyAfter = updatedMoney;
+          currentName = player.name;
+          return { ...player, money: updatedMoney };
+        }
+        return player;
+      })
+    );
+
+    if (moneyAfter !== null && moneyAfter <= 0) {
+      toast.error(`💥 ¡${currentName ?? "El jugador"} ha quedado en bancarrota!`);
+    }
   };
 
   // Icono del dado
@@ -657,6 +690,15 @@ const boardPositions = [
         onClose={handleClosePropertyModal}
         onBuy={handleBuyProperty}
         onPass={handlePassProperty}
+      />
+
+      <CasinoRouletteModal
+        isOpen={showCasinoModal}
+        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerName={playersInGame.find((p) => p.id === currentPlayer)?.name || "Jugador"}
+        casinoName={casinoName || "Casino"}
+        onApplyResult={handleCasinoResult}
+        onClose={handleCloseCasinoModal}
       />
 
       {/* Modal de propiedades del jugador */}
