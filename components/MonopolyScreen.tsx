@@ -8,6 +8,7 @@ import type { Screen } from "../src/App";
 import { PropertyCardModal, type Property } from "./PropertyCardModal";
 import { PlayerPropertiesModal } from "./PlayerPropertiesModal";
 import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/apiService";
+import { CasinoRouletteModal } from "./CasinoRouletteModal";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -26,6 +27,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [hasRolledDice, setHasRolledDice] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCasinoModal, setShowCasinoModal] = useState(false);
+  const [casinoName, setCasinoName] = useState<string | null>(null);
 
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
 
@@ -34,7 +37,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
     const mapSpaceToProperty = (space: ApiBoardSpace): Property => {
       const tipo = (() => {
-        switch (space.type) {
+        const typeUpper = space.type.toUpperCase();
+        switch (typeUpper) {
           case 'SALIDA':
             return 'inicio';
           case 'PROPIEDAD':
@@ -42,6 +46,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           case 'ESTACION':
             return 'estacion';
           case 'COMPANIA':
+          case 'COMPAÑIA': // Handle potential encoding variation
             return 'compañia';
           case 'COMUNIDAD':
             return 'comunidad';
@@ -112,48 +117,48 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
   // Coordenadas del tablero 
   // Coordenadas reales del tablero
-const boardPositions = [
-  { left: "92.6%", top: "92.0%" },
-  { left: "81.8%", top: "92.7%" },
-  { left: "73.1%", top: "92.8%" },
-  { left: "65.2%", top: "93.1%" },
-  { left: "57.4%", top: "92.8%" },
-  { left: "49.1%", top: "93.3%" },
-  { left: "42.2%", top: "93.2%" },
-  { left: "33.4%", top: "92.8%" },
-  { left: "25.2%", top: "93.3%" },
-  { left: "16.6%", top: "93.3%" },
-  { left: "6.3%", top: "92.8%" },
-  { left: "6.1%", top: "83.1%" },
-  { left: "5.8%", top: "74.5%" },
-  { left: "5.3%", top: "67.1%" },
-  { left: "5.1%", top: "58.0%" },
-  { left: "5.1%", top: "50.7%" },
-  { left: "6.6%", top: "41.1%" },
-  { left: "5.8%", top: "33.5%" },
-  { left: "5.8%", top: "26.1%" },
-  { left: "6.3%", top: "17.3%" },
-  { left: "6.6%", top: "6.6%" },
-  { left: "16.9%", top: "6.2%" },
-  { left: "24.9%", top: "6.3%" },
-  { left: "34.2%", top: "6.6%" },
-  { left: "41.4%", top: "6.6%" },
-  { left: "49.4%", top: "6.6%" },
-  { left: "57.3%", top: "6.3%" },
-  { left: "65.8%", top: "5.6%" },
-  { left: "73.9%", top: "6.5%" },
-  { left: "82.4%", top: "6.2%" },
-  { left: "92.8%", top: "7.3%" },
-  { left: "93.0%", top: "17.6%" },
-  { left: "93.8%", top: "25.7%" },
-  { left: "93.2%", top: "33.7%" },
-  { left: "92.5%", top: "42.6%" },
-  { left: "92.0%", top: "50.2%" },
-  { left: "92.2%", top: "58.0%" },
-  { left: "92.3%", top: "66.9%" },
-  { left: "92.3%", top: "75.4%" },
-  { left: "91.9%", top: "82.9%" },
-];
+  const boardPositions = [
+    { left: "92.6%", top: "92.0%" },
+    { left: "81.8%", top: "92.7%" },
+    { left: "73.1%", top: "92.8%" },
+    { left: "65.2%", top: "93.1%" },
+    { left: "57.4%", top: "92.8%" },
+    { left: "49.1%", top: "93.3%" },
+    { left: "42.2%", top: "93.2%" },
+    { left: "33.4%", top: "92.8%" },
+    { left: "25.2%", top: "93.3%" },
+    { left: "16.6%", top: "93.3%" },
+    { left: "6.3%", top: "92.8%" },
+    { left: "6.1%", top: "83.1%" },
+    { left: "5.8%", top: "74.5%" },
+    { left: "5.3%", top: "67.1%" },
+    { left: "5.1%", top: "58.0%" },
+    { left: "5.1%", top: "50.7%" },
+    { left: "6.6%", top: "41.1%" },
+    { left: "5.8%", top: "33.5%" },
+    { left: "5.8%", top: "26.1%" },
+    { left: "6.3%", top: "17.3%" },
+    { left: "6.6%", top: "6.6%" },
+    { left: "16.9%", top: "6.2%" },
+    { left: "24.9%", top: "6.3%" },
+    { left: "34.2%", top: "6.6%" },
+    { left: "41.4%", top: "6.6%" },
+    { left: "49.4%", top: "6.6%" },
+    { left: "57.3%", top: "6.3%" },
+    { left: "65.8%", top: "5.6%" },
+    { left: "73.9%", top: "6.5%" },
+    { left: "82.4%", top: "6.2%" },
+    { left: "92.8%", top: "7.3%" },
+    { left: "93.0%", top: "17.6%" },
+    { left: "93.8%", top: "25.7%" },
+    { left: "93.2%", top: "33.7%" },
+    { left: "92.5%", top: "42.6%" },
+    { left: "92.0%", top: "50.2%" },
+    { left: "92.2%", top: "58.0%" },
+    { left: "92.3%", top: "66.9%" },
+    { left: "92.3%", top: "75.4%" },
+    { left: "91.9%", top: "82.9%" },
+  ];
 
 
   // Tirar dado
@@ -163,7 +168,7 @@ const boardPositions = [
       return;
     }
 
-      try {
+    try {
       let rawValue: number | null = null;
 
       try {
@@ -212,16 +217,16 @@ const boardPositions = [
 
       const newPosition = (currentPlayerData.position + diceTotal) % 40;
       const passedGo = newPosition < currentPlayerData.position;
-      
+
       setPlayersInGame((prev) =>
         prev.map((player) =>
           player.id === currentPlayer
             ? {
-                ...player,
-                position: newPosition,
-                // Si pasó por la salida (posición 0), suma 200
-                money: passedGo ? player.money + 200 : player.money,
-              }
+              ...player,
+              position: newPosition,
+              // Si pasó por la salida (posición 0), suma 200
+              money: passedGo ? player.money + 200 : player.money,
+            }
             : player
         )
       );
@@ -234,8 +239,14 @@ const boardPositions = [
       setTimeout(() => {
         try {
           const property = boardProperties[newPosition];
-          
+
           if (property) {
+            if (property.tipo === 'casino') {
+              setCasinoName(property.nombre);
+              setShowCasinoModal(true);
+              return;
+            }
+
             const isCommunity = property.tipo === 'comunidad' || property.tipo === 'hacienda';
             const isLuck = property.tipo === 'suerte' || property.tipo === 'loteria';
 
@@ -321,7 +332,7 @@ const boardPositions = [
             }
 
             // Verificar si la propiedad está comprada por otro jugador
-            const propertyOwner = playersInGame.find(p => 
+            const propertyOwner = playersInGame.find(p =>
               p.properties.some(prop => prop.propertyId === newPosition)
             );
 
@@ -342,7 +353,7 @@ const boardPositions = [
                 const multiplier = ownerCompanyCount >= 2 ? 10 : 4;
                 rentAmount = diceTotal * multiplier;
               }
-              
+
               setPlayersInGame((prev) =>
                 prev.map((player) => {
                   if (player.id === currentPlayer) {
@@ -367,7 +378,7 @@ const boardPositions = [
               } else {
                 toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
               }
-              
+
               // Añadir dueño a la propiedad para mostrar en el modal
               property.dueno = propertyOwner.name;
             }
@@ -419,9 +430,9 @@ const boardPositions = [
     );
 
     const newMoneyAfterPurchase = currentPlayerData.money - (property.precio || 0);
-    
+
     toast.success(`✅ Compraste ${property.nombre} por ${property.precio} pts`);
-    
+
     // Verificar si quedó en bancarrota
     if (newMoneyAfterPurchase <= 0) {
       toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
@@ -435,45 +446,69 @@ const boardPositions = [
     toast.info("Decidiste no comprar esta propiedad");
   };
 
-  // Cambiar turno al cerrar modal - solo a jugadores activos
-  const handleClosePropertyModal = () => {
-    setShowPropertyModal(false);
-    // Cambiar turno después de que se cierre el modal
+  const endTurn = () => {
     setTimeout(() => {
       setCurrentPlayer((prev) => {
-        // Obtener los jugadores activos (no eliminados) ordenados por ID
         const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
-        
+
         if (activePlayers.length === 0) {
           toast.error("No hay jugadores activos en la partida");
           return prev;
         }
 
-        // Si solo queda un jugador, mostrar mensaje
         if (activePlayers.length === 1) {
           toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
           return activePlayers[0];
         }
 
-        // Encontrar el índice del jugador actual en la lista de activos
         const currentIndex = activePlayers.indexOf(prev);
-        
-        // Si el jugador actual no está en la lista de activos (fue eliminado), buscar el siguiente disponible
+
         if (currentIndex === -1) {
           return activePlayers[0];
         }
 
-        // Si es el último jugador activo, volver al primero
         if (currentIndex === activePlayers.length - 1) {
           return activePlayers[0];
         }
 
-        // Si no, ir al siguiente jugador activo
         return activePlayers[currentIndex + 1];
       });
       setDice1(null);
       setHasRolledDice(false);
     }, 150);
+  };
+
+  // Cambiar turno al cerrar modal - solo a jugadores activos
+  const handleClosePropertyModal = () => {
+    setShowPropertyModal(false);
+    endTurn();
+  };
+
+  const handleCloseCasinoModal = () => {
+    setShowCasinoModal(false);
+    setCasinoName(null);
+    endTurn();
+  };
+
+  const handleCasinoResult = (delta: number) => {
+    let moneyAfter: number | null = null;
+    let currentName: string | null = null;
+
+    setPlayersInGame((prev) =>
+      prev.map((player) => {
+        if (player.id === currentPlayer) {
+          const updatedMoney = Math.max(0, player.money + delta);
+          moneyAfter = updatedMoney;
+          currentName = player.name;
+          return { ...player, money: updatedMoney };
+        }
+        return player;
+      })
+    );
+
+    if (moneyAfter !== null && moneyAfter <= 0) {
+      toast.error(`💥 ¡${currentName ?? "El jugador"} ha quedado en bancarrota!`);
+    }
   };
 
   // Icono del dado
@@ -599,13 +634,12 @@ const boardPositions = [
               <div
                 key={p.id}
                 onClick={() => isActive && setSelectedPlayerForProperties(p.id)}
-                className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${
-                  !isActive
+                className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${!isActive
                     ? "border-gray-600/50 bg-black/40 opacity-50"
                     : currentPlayer === p.id
-                    ? "border-amber-500 bg-amber-500/20"
-                    : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
-                }`}
+                      ? "border-amber-500 bg-amber-500/20"
+                      : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
+                  }`}
                 title={isActive ? `Click para ver propiedades de ${p.name}` : `${p.name} - ¡ELIMINADO!`}
               >
                 <div className={`w-4 h-4 rounded-full ${p.color} mx-auto mb-1`} />
@@ -625,9 +659,8 @@ const boardPositions = [
             <Button
               onClick={rollDice}
               disabled={hasRolledDice}
-              className={`bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white ${
-                hasRolledDice ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={`bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white ${hasRolledDice ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
             >
               <Dice1 className="w-4 h-4 mr-2" />
               Lanzar Dados
@@ -657,6 +690,15 @@ const boardPositions = [
         onClose={handleClosePropertyModal}
         onBuy={handleBuyProperty}
         onPass={handlePassProperty}
+      />
+
+      <CasinoRouletteModal
+        isOpen={showCasinoModal}
+        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerName={playersInGame.find((p) => p.id === currentPlayer)?.name || "Jugador"}
+        casinoName={casinoName || "Casino"}
+        onApplyResult={handleCasinoResult}
+        onClose={handleCloseCasinoModal}
       />
 
       {/* Modal de propiedades del jugador */}
