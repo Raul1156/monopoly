@@ -13,14 +13,16 @@ interface CasinoRouletteModalProps {
   onClose: () => void;
 }
 
-const redNumbers = new Set([
-  1, 3, 5, 7, 9, 12, 14, 16, 18,
-  19, 21, 23, 25, 27, 30, 32, 34, 36
-]);
+const buildWheelColors = (): RouletteBet[] => {
+  const colors: RouletteBet[] = ["verde"];
+  for (let i = 1; i <= 36; i += 1) {
+    colors.push(i % 2 === 1 ? "rojo" : "negro");
+  }
+  return colors;
+};
 
-const getColor = (num: number): RouletteBet => {
-  if (num === 0) return "verde";
-  return redNumbers.has(num) ? "rojo" : "negro";
+const getColor = (num: number, wheelColors: RouletteBet[]): RouletteBet => {
+  return wheelColors[num] ?? "verde";
 };
 
 const getMultiplier = (bet: RouletteBet) => {
@@ -43,6 +45,17 @@ export function CasinoRouletteModal({
   const [rotation, setRotation] = useState(0);
 
   const betOptions = useMemo(() => [25, 50, 100, 200, 300], []);
+  const wheelColors = useMemo(() => buildWheelColors(), []);
+  const segmentAngle = 360 / 37;
+  const wheelGradient = useMemo(() => {
+    const segments = wheelColors.map((color, idx) => {
+      const start = idx * segmentAngle;
+      const end = (idx + 1) * segmentAngle;
+      const hex = color === "rojo" ? "#b91c1c" : color === "negro" ? "#111827" : "#059669";
+      return `${hex} ${start}deg ${end}deg`;
+    });
+    return `conic-gradient(${segments.join(", ")})`;
+  }, [wheelColors, segmentAngle]);
 
   if (!isOpen) return null;
 
@@ -62,14 +75,19 @@ export function CasinoRouletteModal({
     setResultNumber(null);
 
     const number = Math.floor(Math.random() * 37);
-    const color = getColor(number);
+    const color = getColor(number, wheelColors);
     const multiplier = getMultiplier(betType);
 
     const win = color === betType;
     const delta = win ? betAmount * (multiplier - 1) : -betAmount;
 
-    const extraRotation = 720 + Math.floor(Math.random() * 360);
-    setRotation((prev) => prev + extraRotation);
+    const extraRotation = 360 * 4 + Math.floor(Math.random() * 360);
+    const targetAngle = number * segmentAngle + segmentAngle / 2;
+    setRotation((prev) => {
+      const raw = prev + extraRotation;
+      const correction = (360 - ((raw + targetAngle) % 360)) % 360;
+      return raw + correction;
+    });
 
     setTimeout(() => {
       setResultNumber(number);
@@ -85,7 +103,7 @@ export function CasinoRouletteModal({
     }, 1400);
   };
 
-  const resultColor = resultNumber !== null ? getColor(resultNumber) : null;
+  const resultColor = resultNumber !== null ? getColor(resultNumber, wheelColors) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -107,8 +125,7 @@ export function CasinoRouletteModal({
               <div
                 className="absolute inset-2 rounded-full"
                 style={{
-                  background:
-                    "conic-gradient(#1f2937 0deg 15deg, #b91c1c 15deg 45deg, #111827 45deg 75deg, #b91c1c 75deg 105deg, #111827 105deg 135deg, #b91c1c 135deg 165deg, #111827 165deg 195deg, #b91c1c 195deg 225deg, #111827 225deg 255deg, #b91c1c 255deg 285deg, #111827 285deg 315deg, #b91c1c 315deg 345deg, #111827 345deg 360deg)",
+                  background: wheelGradient,
                   transform: `rotate(${rotation}deg)`,
                   transition: spinning ? "transform 1.4s cubic-bezier(0.2, 0.8, 0.2, 1)" : "transform 0.4s ease"
                 }}
