@@ -297,6 +297,27 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         }, 1500); // 1.5s delay to let them see they landed on 30
 
         return;
+        return;
+      }
+
+      // Check Tax (Cell 4)
+      if (newPosition === 4) {
+        setPlayersInGame((prev) =>
+          prev.map((player) =>
+            player.id === currentPlayer
+              ? {
+                ...player,
+                money: Math.max(0, player.money - 200),
+              }
+              : player
+          )
+        );
+        toast.info("💸 Impuestos: Has pagado 200");
+      }
+
+      // Check Casino (Cell 38)
+      if (newPosition === 38) {
+        // Logic to trigger modal is below in the setTimeout, but we can prevent standard property actions here if needed
       }
 
 
@@ -310,8 +331,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           const property = boardProperties[newPosition];
 
           if (property) {
-            if (property.tipo === 'casino') {
-              setCasinoName(property.nombre);
+            if (property.tipo === 'casino' || newPosition === 38) {
+              setCasinoName(property.nombre || "Gran Casino");
               setShowCasinoModal(true);
               return;
             }

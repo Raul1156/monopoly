@@ -116,6 +116,22 @@ public class GameActionsController : ControllerBase
             {
                 // Just visiting, do nothing special
             }
+            
+            // Tax: Cell 4
+            if (moveResult.NewPosition == 4)
+            {
+                 player.Money -= 200;
+                 if (player.Money < 0) player.Money = 0; // Or handle bankruptcy logic here if needed
+                 moveResult.MoneyChange = -200;
+                 moveResult.Message = "Has pagado 200 de impuestos";
+            }
+            
+            // Casino: Cell 38
+            if (moveResult.NewPosition == 38)
+            {
+                 moveResult.SpaceType = "Casino";
+                 moveResult.Message = "¡Bienvenido al Gran Casino!";
+            }
 
             await _context.SaveChangesAsync();
 
