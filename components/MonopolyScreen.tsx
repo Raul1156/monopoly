@@ -429,6 +429,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             if (propertyOwner && propertyOwner.id !== currentPlayer) {
               // Cobrar alquiler
               const isCompany = property.tipo === 'compañia';
+              const isStation = property.tipo === 'estacion';
               let rentAmount = property.alquiler || 0;
 
               if (isCompany) {
@@ -442,6 +443,18 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
                 const multiplier = ownerCompanyCount >= 2 ? 10 : 4;
                 rentAmount = diceTotal * multiplier;
+              } else if (isStation) {
+                // Lógica de estaciones: 25, 50, 100, 200
+                const stationPositions = boardProperties
+                  .map((p, idx) => (p?.tipo === 'estacion' ? idx : null))
+                  .filter((v): v is number => v !== null);
+
+                const ownerStationCount = propertyOwner.properties.filter((prop) =>
+                  stationPositions.includes(prop.propertyId)
+                ).length;
+
+                // Formula: 25 * 2^(n-1) -> 1=25, 2=50, 3=100, 4=200
+                rentAmount = 25 * Math.pow(2, Math.max(0, ownerStationCount - 1));
               }
 
               setPlayersInGame((prev) =>
