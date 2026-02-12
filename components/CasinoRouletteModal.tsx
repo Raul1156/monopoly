@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { cn } from "./ui/utils";
 
 // --- TYPES ---
-export type BetType = "number" | "color" | "parity";
-export type BetValue = number | "rojo" | "negro" | "par" | "impar";
+type BetType = "number" | "color" | "parity";
+type BetValue = number | "rojo" | "negro" | "par" | "impar";
 
 interface CurrentBet {
   type: BetType;
@@ -49,32 +49,68 @@ export function CasinoRouletteModal({
 }: CasinoRouletteModalProps) {
   // State
   const [bet, setBet] = useState<CurrentBet | null>(null);
-  const [amount, setAmount] = useState<string>("50");
+  const [amount, setAmount] = useState<string>("100");
   const [spinning, setSpinning] = useState(false);
   const [resultNumber, setResultNumber] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
+  const [spinsCount, setSpinsCount] = useState(0);
 
-  // Reset state when opening
+  // Constants for rules
+  const MIN_BET = 100;
+  const MAX_SPINS = 5;
+
+  // Determine if it's an "All In" situation
+  const isAllIn = playerMoney < MIN_BET && playerMoney > 0;
+
+  // Reset state when opening or when money changes (to re-evaluate All In)
   useEffect(() => {
     if (isOpen) {
       setResultNumber(null);
       setSpinning(false);
       setBet(null);
+      setSpinsCount(0);
+
+      // Initial amount logic
+      if (playerMoney < MIN_BET) {
+        setAmount(playerMoney.toString());
+      } else {
+        setAmount(MIN_BET.toString());
+      }
     }
   }, [isOpen]);
+
+  // Update amount if it becomes All In during play
+  useEffect(() => {
+    if (isOpen && isAllIn) {
+      setAmount(playerMoney.toString());
+    }
+  }, [playerMoney, isAllIn, isOpen]);
 
   if (!isOpen) return null;
 
   const parsedAmount = parseInt(amount) || 0;
-  const canBet = parsedAmount > 0 && parsedAmount <= playerMoney && bet !== null && !spinning;
+  const canBet = parsedAmount > 0 && parsedAmount <= playerMoney && bet !== null && !spinning && spinsCount < MAX_SPINS;
+  const canClose = !spinning && spinsCount >= 1; // Minimum 1 spin required
 
   // --- LOGIC ---
 
   const handleSpin = () => {
+    if (spinsCount >= MAX_SPINS) {
+      toast.error("Has alcanzado el límite máximo de 5 tiradas");
+      return;
+    }
+
     if (!canBet) {
       if (!bet) toast.error("Por favor, selecciona una apuesta");
       else if (parsedAmount <= 0) toast.error("Ingresa un monto válido");
       else if (parsedAmount > playerMoney) toast.error("Fondos insuficientes");
+      else if (parsedAmount < MIN_BET && !isAllIn) toast.error(`La apuesta mínima es de ${MIN_BET}`);
+      return;
+    }
+
+    // Double check specific rule validations
+    if (!isAllIn && parsedAmount < MIN_BET) {
+      toast.error(`La apuesta mínima es de ${MIN_BET}`);
       return;
     }
 
@@ -106,30 +142,14 @@ export function CasinoRouletteModal({
 
     // 3. Animation Logic
     const segmentAngle = 360 / 37;
-
-    // Logic: 
-    // Wheel starts with 0 at top (0deg).
-    // Numbers increase CLOCKWISE: 0, 1, 2...
-    // So index i is at Angle = i * segmentAngle.
-    // To bring index i to Top (0deg), we must rotate COUNTER-CLOCKWISE (negative) or rotate wheel by 360 - Angle.
-
     const indexInWheel = winningIndex;
-
-    // We want the CENTER of the segment.
-    // Segment i spans from i*ang to (i+1)*ang. Center is (i+0.5)*ang.
     const centerAngle = (indexInWheel + 0.5) * segmentAngle;
-
-    // Target rotation to bring this center to visual top (0 deg)
     const baseTargetAngle = 360 - centerAngle;
-
     const extraSpins = 360 * 5;
-    // Randomize within 80% of the segment to look natural
     const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
-
     const currentRotation = rotation;
     const currentMod = currentRotation % 360;
 
-    // Ensure we always spin forward
     let targetRotation = currentRotation - currentMod + baseTargetAngle;
     if (targetRotation <= currentRotation) {
       targetRotation += 360;
@@ -143,11 +163,17 @@ export function CasinoRouletteModal({
       setResultNumber(winningNumber);
       setSpinning(false);
       onApplyResult(delta);
+      const newSpins = spinsCount + 1;
+      setSpinsCount(newSpins);
 
       if (win) {
         toast.success(`🎉 ¡GANASTE! Salió el ${winningNumber}. Ganancia: $${parsedAmount * (multiplier - 1)}`);
       } else {
         toast.error(`💸 Perdiste. Salió el ${winningNumber}.`);
+      }
+
+      if (newSpins >= MAX_SPINS) {
+        toast.info("Has alcanzado el límite de 5 tiradas. ¡Gracias por jugar!");
       }
     }, 3800);
   };
@@ -165,13 +191,13 @@ export function CasinoRouletteModal({
     return (
       <button
         key={num}
-        disabled={spinning}
+        disabled={spinning || spinsCount >= MAX_SPINS}
         onClick={() => setBet({ type: "number", value: num })}
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-sm text-sm font-bold text-white transition-all shadow-md",
           bgClass,
           isSelected && "ring-4 ring-amber-400 z-10 scale-110",
-          spinning && "opacity-50 cursor-not-allowed"
+          (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
         )}
       >
         {num}
@@ -179,10 +205,6 @@ export function CasinoRouletteModal({
     );
   };
 
-  // Rows for the board
-  // Top: 3, 6, 9...
-  // Mid: 2, 5, 8...
-  // Bot: 1, 4, 7...
   const rows = [
     [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36],
     [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35],
@@ -191,8 +213,8 @@ export function CasinoRouletteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/80 backdrop-blur-sm p-4">
-      {/* Click outside to close */}
-      <div className="absolute inset-0" onClick={() => !spinning && onClose()} />
+      {/* Block closing if minimum spins not met */}
+      <div className="absolute inset-0" onClick={() => canClose && onClose()} />
 
       <div className="relative w-full max-w-5xl rounded-xl border border-amber-600/50 bg-gradient-to-b from-zinc-900 to-zinc-950 px-4 py-8 shadow-2xl md:px-8" onClick={e => e.stopPropagation()}>
 
@@ -202,15 +224,21 @@ export function CasinoRouletteModal({
             <h2 className="text-3xl font-extrabold text-amber-500 drop-shadow-sm tracking-wide">
               {casinoName}
             </h2>
-            <p className="text-zinc-400 font-medium">Ruleta Secuencial (1-36)</p>
+            <p className="text-zinc-400 font-medium">
+              Tirada {Math.min(spinsCount + 1, MAX_SPINS)} / {MAX_SPINS}
+              {spinsCount === 0 && <span className="text-amber-500 ml-2 text-sm font-bold">(Mínimo 1 obligatoria)</span>}
+            </p>
           </div>
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={spinning}
-            className="border-amber-600/30 text-amber-500 hover:bg-amber-900/20 hover:text-amber-400"
+            disabled={!canClose}
+            className={cn(
+              "border-amber-600/30 text-amber-500 hover:bg-amber-900/20 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed",
+              !canClose && "opacity-30"
+            )}
           >
-            Cerrar
+            {spinsCount >= MAX_SPINS ? "Terminar" : "Cerrar"}
           </Button>
         </div>
 
@@ -297,8 +325,17 @@ export function CasinoRouletteModal({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-zinc-400 text-sm uppercase tracking-wider">Saldo Disponible</span>
-                <span className="font-mono text-xl font-bold text-emerald-400">${playerMoney}</span>
+                <span className={cn("font-mono text-xl font-bold", playerMoney < MIN_BET ? "text-red-500" : "text-emerald-400")}>
+                  ${playerMoney}
+                </span>
               </div>
+              {isAllIn && (
+                <div className="mt-2 text-center">
+                  <span className="inline-block px-2 py-1 rounded bg-red-900/50 text-red-400 text-xs font-bold border border-red-500/30 animate-pulse">
+                    ⚠️ SALDO BAJO: ALL-IN OBLIGATORIO
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -308,29 +345,33 @@ export function CasinoRouletteModal({
             {/* Bet Controls */}
             <div className="flex flex-col sm:flex-row items-end gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
               <div className="w-full sm:flex-1 space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Monto de la apuesta</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Monto de la apuesta
+                  {!isAllIn && <span className="ml-2 text-zinc-600">(Mínimo: ${MIN_BET})</span>}
+                </label>
                 <div className="relative group">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-amber-500 transition-colors">$</span>
                   <Input
                     type="number"
-                    min="1"
+                    min={Math.min(playerMoney, MIN_BET)}
                     max={playerMoney}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="pl-7 h-11 bg-zinc-950 border-zinc-700 text-white font-mono text-lg focus:ring-amber-500 focus:border-amber-500"
-                    disabled={spinning}
+                    className="pl-7 h-11 bg-zinc-950 border-zinc-700 text-white font-mono text-lg focus:ring-amber-500 focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={spinning || isAllIn || spinsCount >= MAX_SPINS}
                   />
                 </div>
               </div>
               <Button
                 onClick={handleSpin}
-                disabled={!canBet || spinning}
+                disabled={!canBet || spinning || spinsCount >= MAX_SPINS}
                 className={cn(
                   "h-11 w-full sm:w-auto min-w-[140px] font-bold uppercase tracking-wide text-lg transition-all duration-300 transform",
-                  spinning ? "bg-zinc-800 text-zinc-500 scale-95" : "bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white shadow-lg hover:shadow-amber-500/30 hover:scale-105 active:scale-95"
+                  spinning ? "bg-zinc-800 text-zinc-500 scale-95" : "bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white shadow-lg hover:shadow-amber-500/30 hover:scale-105 active:scale-95",
+                  spinsCount >= MAX_SPINS && "opacity-50 grayscale cursor-not-allowed"
                 )}
               >
-                {spinning ? "Girando..." : "GIRAR"}
+                {spinning ? "Girando..." : spinsCount >= MAX_SPINS ? "LÍMITE ALCANZADO" : "GIRAR"}
               </Button>
             </div>
 
@@ -346,10 +387,11 @@ export function CasinoRouletteModal({
                   {/* 0 Column */}
                   <button
                     onClick={() => setBet({ type: "number", value: 0 })}
-                    disabled={spinning}
+                    disabled={spinning || spinsCount >= MAX_SPINS}
                     className={cn(
                       "flex w-14 items-center justify-center rounded-l-md border-2 border-emerald-400/30 font-bold text-xl hover:bg-emerald-600 transition-all duration-200",
-                      bet?.type === "number" && bet.value === 0 ? "bg-emerald-500 ring-4 ring-amber-400 z-10 text-white shadow-lg scale-105" : "bg-emerald-700 text-emerald-100"
+                      bet?.type === "number" && bet.value === 0 ? "bg-emerald-500 ring-4 ring-amber-400 z-10 text-white shadow-lg scale-105" : "bg-emerald-700 text-emerald-100",
+                      (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     0
@@ -372,24 +414,26 @@ export function CasinoRouletteModal({
                   <div className="col-span-1 grid grid-cols-1 gap-1">
                     <button
                       onClick={() => setBet({ type: "parity", value: "par" })}
-                      disabled={spinning}
+                      disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-emerald-400/20 text-xs font-bold uppercase tracking-widest transition-all",
                         bet?.type === "parity" && bet.value === "par"
                           ? "bg-emerald-600 border-emerald-400 text-white ring-2 ring-amber-400 shadow-lg"
-                          : "bg-emerald-800/50 text-emerald-200 hover:bg-emerald-700"
+                          : "bg-emerald-800/50 text-emerald-200 hover:bg-emerald-700",
+                        (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       PAR
                     </button>
                     <button
                       onClick={() => setBet({ type: "parity", value: "impar" })}
-                      disabled={spinning}
+                      disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-emerald-400/20 text-xs font-bold uppercase tracking-widest transition-all",
                         bet?.type === "parity" && bet.value === "impar"
                           ? "bg-emerald-600 border-emerald-400 text-white ring-2 ring-amber-400 shadow-lg"
-                          : "bg-emerald-800/50 text-emerald-200 hover:bg-emerald-700"
+                          : "bg-emerald-800/50 text-emerald-200 hover:bg-emerald-700",
+                        (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       IMPAR
@@ -400,12 +444,13 @@ export function CasinoRouletteModal({
                   <div className="col-span-1 grid grid-cols-1 gap-1">
                     <button
                       onClick={() => setBet({ type: "color", value: "rojo" })}
-                      disabled={spinning}
+                      disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-red-900/50 flex items-center justify-center gap-2 transition-all",
                         bet?.type === "color" && bet.value === "rojo"
                           ? "bg-red-600 ring-2 ring-amber-400 shadow-lg border-red-400"
-                          : "bg-red-800 hover:bg-red-700"
+                          : "bg-red-800 hover:bg-red-700",
+                        (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       <div className="w-4 h-4 bg-red-500 rotate-45 border border-red-900 rounded-[1px]" />
@@ -413,12 +458,13 @@ export function CasinoRouletteModal({
                     </button>
                     <button
                       onClick={() => setBet({ type: "color", value: "negro" })}
-                      disabled={spinning}
+                      disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-zinc-700 flex items-center justify-center gap-2 transition-all",
                         bet?.type === "color" && bet.value === "negro"
                           ? "bg-zinc-800 ring-2 ring-amber-400 shadow-lg border-zinc-500"
-                          : "bg-zinc-900 hover:bg-zinc-800"
+                          : "bg-zinc-900 hover:bg-zinc-800",
+                        (spinning || spinsCount >= MAX_SPINS) && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       <div className="w-4 h-4 bg-zinc-600 rotate-45 border border-black rounded-[1px]" />
