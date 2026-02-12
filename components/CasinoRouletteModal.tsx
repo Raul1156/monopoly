@@ -3,6 +3,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { cn } from "./ui/utils";
+import { useCasinoSounds } from "../hooks/useCasinoSounds";
 
 // --- TYPES ---
 type BetType = "number" | "color" | "parity";
@@ -55,6 +56,9 @@ export function CasinoRouletteModal({
   const [rotation, setRotation] = useState(0);
   const [spinsCount, setSpinsCount] = useState(0);
 
+  // Sounds
+  const { playBet, playSpin, stopSpin, playWin, playLose } = useCasinoSounds();
+
   // Constants for rules
   const MIN_BET = 100;
   const MAX_SPINS = 5;
@@ -69,6 +73,7 @@ export function CasinoRouletteModal({
       setSpinning(false);
       setBet(null);
       setSpinsCount(0);
+      stopSpin(); // Ensure sound stops if re-opened quickly
 
       // Initial amount logic
       if (playerMoney < MIN_BET) {
@@ -77,6 +82,7 @@ export function CasinoRouletteModal({
         setAmount(MIN_BET.toString());
       }
     }
+    return () => stopSpin(); // Cleanup
   }, [isOpen]);
 
   // Update amount if it becomes All In during play
@@ -93,6 +99,11 @@ export function CasinoRouletteModal({
   const canClose = !spinning && spinsCount >= 1; // Minimum 1 spin required
 
   // --- LOGIC ---
+
+  const handleBetSelection = (newBet: CurrentBet) => {
+    setBet(newBet);
+    playBet();
+  };
 
   const handleSpin = () => {
     if (spinsCount >= MAX_SPINS) {
@@ -116,6 +127,7 @@ export function CasinoRouletteModal({
 
     setSpinning(true);
     setResultNumber(null);
+    playSpin();
 
     // 1. Determine Result
     const winningIndex = Math.floor(Math.random() * 37); // 0-36
@@ -160,6 +172,7 @@ export function CasinoRouletteModal({
 
     // 4. Resolve
     setTimeout(() => {
+      stopSpin();
       setResultNumber(winningNumber);
       setSpinning(false);
       onApplyResult(delta);
@@ -167,8 +180,10 @@ export function CasinoRouletteModal({
       setSpinsCount(newSpins);
 
       if (win) {
+        playWin();
         toast.success(`🎉 ¡GANASTE! Salió el ${winningNumber}. Ganancia: $${parsedAmount * (multiplier - 1)}`);
       } else {
+        playLose();
         toast.error(`💸 Perdiste. Salió el ${winningNumber}.`);
       }
 
@@ -192,7 +207,7 @@ export function CasinoRouletteModal({
       <button
         key={num}
         disabled={spinning || spinsCount >= MAX_SPINS}
-        onClick={() => setBet({ type: "number", value: num })}
+        onClick={() => handleBetSelection({ type: "number", value: num })}
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-sm text-sm font-bold text-white transition-all shadow-md",
           bgClass,
@@ -386,7 +401,7 @@ export function CasinoRouletteModal({
                 <div className="flex items-stretch gap-1.5">
                   {/* 0 Column */}
                   <button
-                    onClick={() => setBet({ type: "number", value: 0 })}
+                    onClick={() => handleBetSelection({ type: "number", value: 0 })}
                     disabled={spinning || spinsCount >= MAX_SPINS}
                     className={cn(
                       "flex w-14 items-center justify-center rounded-l-md border-2 border-emerald-400/30 font-bold text-xl hover:bg-emerald-600 transition-all duration-200",
@@ -413,7 +428,7 @@ export function CasinoRouletteModal({
                   {/* Even/Odd Group */}
                   <div className="col-span-1 grid grid-cols-1 gap-1">
                     <button
-                      onClick={() => setBet({ type: "parity", value: "par" })}
+                      onClick={() => handleBetSelection({ type: "parity", value: "par" })}
                       disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-emerald-400/20 text-xs font-bold uppercase tracking-widest transition-all",
@@ -426,7 +441,7 @@ export function CasinoRouletteModal({
                       PAR
                     </button>
                     <button
-                      onClick={() => setBet({ type: "parity", value: "impar" })}
+                      onClick={() => handleBetSelection({ type: "parity", value: "impar" })}
                       disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-emerald-400/20 text-xs font-bold uppercase tracking-widest transition-all",
@@ -443,7 +458,7 @@ export function CasinoRouletteModal({
                   {/* Red/Black Group */}
                   <div className="col-span-1 grid grid-cols-1 gap-1">
                     <button
-                      onClick={() => setBet({ type: "color", value: "rojo" })}
+                      onClick={() => handleBetSelection({ type: "color", value: "rojo" })}
                       disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-red-900/50 flex items-center justify-center gap-2 transition-all",
@@ -457,7 +472,7 @@ export function CasinoRouletteModal({
                       <span className="text-white font-bold text-xs">ROJO</span>
                     </button>
                     <button
-                      onClick={() => setBet({ type: "color", value: "negro" })}
+                      onClick={() => handleBetSelection({ type: "color", value: "negro" })}
                       disabled={spinning || spinsCount >= MAX_SPINS}
                       className={cn(
                         "h-10 rounded border-2 border-zinc-700 flex items-center justify-center gap-2 transition-all",
@@ -508,3 +523,4 @@ export function CasinoRouletteModal({
     </div>
   );
 }
+
