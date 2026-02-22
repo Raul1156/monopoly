@@ -30,6 +30,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [showCasinoModal, setShowCasinoModal] = useState(false);
   const [casinoName, setCasinoName] = useState<string | null>(null);
 
+  // Dev mode: elegir número del dado para pruebas
+  const [devMode, setDevMode] = useState(false);
+  const [debugDiceValue, setDebugDiceValue] = useState<number>(1);
+
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           case 'ESTACION':
             return 'estacion';
           case 'COMPANIA':
-          case 'COMPAÑIA': // Handle potential encoding variation
+          case 'COMPAÑIA': 
             return 'compañia';
           case 'COMUNIDAD':
             return 'comunidad';
@@ -116,7 +120,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   ]);
 
   // Coordenadas del tablero 
-  // Coordenadas reales del tablero
   const boardPositions = [
     { left: "92.6%", top: "92.0%" },
     { left: "81.8%", top: "92.7%" },
@@ -171,15 +174,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     const currentPlayerData = playersInGame[currentPlayer - 1];
     if (!currentPlayerData) return;
 
-    // 1. Check Jail Status
+    //  prision
     if (currentPlayerData.isInJail) {
       setPlayersInGame((prev) =>
         prev.map((player) => {
           if (player.id === currentPlayer) {
             const newTurns = player.jailTurns - 1;
-            // If turns reach 0, they are free for the local logic (will move next time normally)
-            // Or we could let them move immediately if we want "Roll doubles to exit" logic, 
-            // but requirements say "3 whole turns".
+            
             const stillInJail = newTurns > 0;
             return {
               ...player,
@@ -198,7 +199,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         toast.info("🎉 ¡Has cumplido tu condena! Podrás moverte en el siguiente turno.");
       }
 
-      // Consume turn immediately
       endTurn();
       return;
     }
@@ -206,33 +206,39 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     try {
       let rawValue: number | null = null;
 
-      try {
-        // Intentar llamar al backend C# pero con timeout para evitar esperas largas
-        const controller = new AbortController();
-        const timeoutMs = 800; // tiempo máximo a esperar al backend
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      if (devMode) {
+        // Modo dev: usar el valor elegido manualmente
+        rawValue = debugDiceValue;
+        toast.info(`🛠️ DEV: Dado forzado a ${debugDiceValue}`);
+      } else {
+        try {
+          // Intentar llamar al backend C# pero con timeout para evitar esperas largas
+          const controller = new AbortController();
+          const timeoutMs = 800; // tiempo máximo a esperar al backend
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        const res = await fetch("http://localhost:5000/api/gameactions/roll-dice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-        });
+          const res = await fetch("http://localhost:5000/api/gameactions/roll-dice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+          });
 
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-        if (!res.ok) throw new Error("Error al tirar los dados");
+          if (!res.ok) throw new Error("Error al tirar los dados");
 
-        const data = await res.json();
-        console.log("Respuesta del backend:", data);
+          const data = await res.json();
+          console.log("Respuesta del backend:", data);
 
-        // Interpretar la respuesta como un único dado. Preferimos `dice1` si existe,
-        // si viene `total` lo usamos también (pero lo mapeamos a 1-6).
-        rawValue = data.dice1 ?? data.total ?? null;
-      } catch (backendError) {
-        // Si falla el backend o se agota el timeout, usar lógica local (un solo dado)
-        console.warn('Backend no disponible o tardó demasiado, usando dado local:', backendError);
-        rawValue = Math.floor(Math.random() * 6) + 1;
-        toast.info("🎲 Usando dado local (backend no disponible o lento)");
+          // Interpretar la respuesta como un único dado. Preferimos `dice1` si existe,
+          // si viene `total` lo usamos también (pero lo mapeamos a 1-6).
+          rawValue = data.dice1 ?? data.total ?? null;
+        } catch (backendError) {
+          // Si falla el backend o se agota el timeout, usar lógica local (un solo dado)
+          console.warn('Backend no disponible o tardó demasiado, usando dado local:', backendError);
+          rawValue = Math.floor(Math.random() * 6) + 1;
+          toast.info("🎲 Usando dado local (backend no disponible o lento)");
+        }
       }
 
       // Mapear cualquier valor numérico a un único dado en rango 1..6
@@ -777,6 +783,29 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               Lanzar Dados
             </Button>
             {dice1 && getDiceIcon(dice1)}
+
+            {/* Dev mode: elegir dado */}
+            <button
+              onClick={() => setDevMode((v) => !v)}
+              className={`ml-2 px-2 py-1 rounded text-[10px] font-bold border transition-colors ${devMode
+                  ? 'bg-green-600 border-green-400 text-white'
+                  : 'bg-gray-700/50 border-gray-500/30 text-gray-400 hover:border-gray-400'
+                }`}
+              title="Modo desarrollo: elegir número del dado"
+            >
+              🛠️ DEV
+            </button>
+            {devMode && (
+              <select
+                value={debugDiceValue}
+                onChange={(e) => setDebugDiceValue(Number(e.target.value))}
+                className="bg-gray-800 border border-green-500/50 text-green-400 text-xs rounded px-1 py-1 w-12"
+              >
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
