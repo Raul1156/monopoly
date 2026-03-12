@@ -9,6 +9,7 @@ import { PropertyCardModal, type Property } from "./PropertyCardModal";
 import { PlayerPropertiesModal } from "./PlayerPropertiesModal";
 import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/apiService";
 import { CasinoRouletteModal } from "./CasinoRouletteModal";
+import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
 
 interface MonopolyScreenProps {
@@ -30,6 +31,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [showCasinoModal, setShowCasinoModal] = useState(false);
   const [casinoName, setCasinoName] = useState<string | null>(null);
+  const [showBlackjackModal, setShowBlackjackModal] = useState(false);
+  const [blackjackName, setBlackjackName] = useState<string | null>(null);
   /*tram*/
   const [showTramModal, setShowTramModal] = useState(false);
   const [tramStationName, setTramStationName] = useState<string>("Estacion");
@@ -49,30 +52,30 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       const tipo = (() => {
         const typeUpper = space.type.toUpperCase();
         switch (typeUpper) {
-          case 'SALIDA':
-            return 'inicio';
-          case 'PROPIEDAD':
-            return 'propiedad';
-          case 'ESTACION':
-            return 'estacion';
-          case 'COMPANIA':
-          case 'COMPAÑIA': 
-            return 'compañia';
-          case 'COMUNIDAD':
-            return 'comunidad';
-          case 'SUERTE':
-          case 'LOTERIA':
-            return 'suerte';
-          case 'CARCEL':
-            return 'carcel';
-          case 'IR_CARCEL':
-            return 'irCarcel';
-          case 'CASINO':
-            return 'casino';
-          case 'IMPUESTO':
-            return 'impuesto';
+          case "SALIDA":
+            return "inicio";
+          case "PROPIEDAD":
+            return "propiedad";
+          case "ESTACION":
+            return "estacion";
+          case "COMPANIA":
+          case "COMPAÑIA":
+            return "compañia";
+          case "COMUNIDAD":
+            return "comunidad";
+          case "SUERTE":
+          case "LOTERIA":
+            return "suerte";
+          case "CARCEL":
+            return "carcel";
+          case "IR_CARCEL":
+            return "irCarcel";
+          case "CASINO":
+            return "casino";
+          case "IMPUESTO":
+            return "impuesto";
           default:
-            return 'propiedad';
+            return "propiedad";
         }
       })();
 
@@ -82,7 +85,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         tipo,
       };
 
-      if (tipo === 'propiedad' || tipo === 'estacion' || tipo === 'compañia') {
+      if (tipo === "propiedad" || tipo === "estacion" || tipo === "compañia") {
         return {
           ...base,
           precio: space.property?.price,
@@ -90,7 +93,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         };
       }
 
-      if (tipo === 'impuesto') {
+      if (tipo === "impuesto") {
         return { ...base, cantidad: space.actionAmount ?? undefined };
       }
 
@@ -108,8 +111,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         setBoardProperties(arr);
       })
       .catch((err) => {
-        console.error('Error loading board spaces:', err);
-        if (mounted) setError('No se pudo cargar el tablero desde la base de datos');
+        console.error("Error loading board spaces:", err);
+        if (mounted) setError("No se pudo cargar el tablero desde la base de datos");
       });
 
     return () => {
@@ -117,7 +120,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     };
   }, []);
 
-  // Jugadores: todos empiezan en la casilla 0 
+  // Jugadores: todos empiezan en la casilla 0
   const [playersInGame, setPlayersInGame] = useState([
     { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
     { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
@@ -125,7 +128,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
   ]);
 
-  // Coordenadas del tablero 
+  // Coordenadas del tablero
   const boardPositions = [
     { left: "92.6%", top: "92.0%" },
     { left: "81.8%", top: "92.7%" },
@@ -199,7 +202,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   };
   /*tram*/
 
-
   // Tirar dado
   const rollDice = async () => {
     if (hasRolledDice) {
@@ -210,18 +212,17 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     const currentPlayerData = playersInGame[currentPlayer - 1];
     if (!currentPlayerData) return;
 
-    //  prision
+    // prision
     if (currentPlayerData.isInJail) {
       setPlayersInGame((prev) =>
         prev.map((player) => {
           if (player.id === currentPlayer) {
             const newTurns = player.jailTurns - 1;
-            
             const stillInJail = newTurns > 0;
             return {
               ...player,
               jailTurns: Math.max(0, newTurns),
-              isInJail: stillInJail
+              isInJail: stillInJail,
             };
           }
           return player;
@@ -250,7 +251,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         try {
           // Intentar llamar al backend C# pero con timeout para evitar esperas largas
           const controller = new AbortController();
-          const timeoutMs = 800; // tiempo máximo a esperar al backend
+          const timeoutMs = 800;
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
           const res = await fetch("http://localhost:5000/api/gameactions/roll-dice", {
@@ -266,18 +267,14 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           const data = await res.json();
           console.log("Respuesta del backend:", data);
 
-          // Interpretar la respuesta como un único dado. Preferimos `dice1` si existe,
-          // si viene `total` lo usamos también (pero lo mapeamos a 1-6).
           rawValue = data.dice1 ?? data.total ?? null;
         } catch (backendError) {
-          // Si falla el backend o se agota el timeout, usar lógica local (un solo dado)
-          console.warn('Backend no disponible o tardó demasiado, usando dado local:', backendError);
+          console.warn("Backend no disponible o tardó demasiado, usando dado local:", backendError);
           rawValue = Math.floor(Math.random() * 6) + 1;
           toast.info("🎲 Usando dado local (backend no disponible o lento)");
         }
       }
 
-      // Mapear cualquier valor numérico a un único dado en rango 1..6
       const singleDie = rawValue !== null ? ((rawValue - 1) % 6) + 1 : Math.floor(Math.random() * 6) + 1;
       const diceTotal = singleDie;
 
@@ -285,8 +282,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       setHasRolledDice(true);
       toast.success(`🎲 Sacaste ${singleDie}`);
 
-      // Calcular nueva posición
-      const currentPlayerData = playersInGame[currentPlayer - 1]; // Re-select to be safe, though used above
+      const currentPlayerData = playersInGame[currentPlayer - 1];
       if (!currentPlayerData) {
         console.error("No se encontró el jugador actual");
         return;
@@ -299,46 +295,42 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       // Check Go To Jail (Cell 30)
       if (newPosition === 30) {
         sentToJail = true;
-        passedGo = false; // No passing go reward
+        passedGo = false;
       }
 
-      // Step 1: Move to destination (even if it's 30)
+      // Step 1: Move to destination
       setPlayersInGame((prev) =>
         prev.map((player) =>
           player.id === currentPlayer
             ? {
-              ...player,
-              position: newPosition,
-              money: passedGo ? player.money + 200 : player.money,
-              // If sent to jail, we don't set the flag YET, we wait for the animation/toast
-            }
+                ...player,
+                position: newPosition,
+                money: passedGo ? player.money + 200 : player.money,
+              }
             : player
         )
       );
 
       if (sentToJail) {
-        // Show immediate feedback for landing on 30
         toast.error("👮 ¡Has caído en la casilla de ir a la cárcel!");
 
-        // Step 2: Delay, then move to 10 and set Jail state
         setTimeout(() => {
           setPlayersInGame((prev) =>
             prev.map((player) =>
               player.id === currentPlayer
                 ? {
-                  ...player,
-                  position: 10,
-                  isInJail: true,
-                  jailTurns: 3
-                }
+                    ...player,
+                    position: 10,
+                    isInJail: true,
+                    jailTurns: 3,
+                  }
                 : player
             )
           );
           toast.error("🔒 Te vas a la cárcel. 3 turnos sin jugar.");
           endTurn();
-        }, 1500); // 1.5s delay to let them see they landed on 30
+        }, 1500);
 
-        return;
         return;
       }
 
@@ -348,39 +340,44 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           prev.map((player) =>
             player.id === currentPlayer
               ? {
-                ...player,
-                money: Math.max(0, player.money - 200),
-              }
+                  ...player,
+                  money: Math.max(0, player.money - 200),
+                }
               : player
           )
         );
         toast.info("💸 Impuestos: Has pagado 200");
       }
 
-      // Check Casino (Cell 38)
-      if (newPosition === 38) {
-        // Logic to trigger modal is below in the setTimeout, but we can prevent standard property actions here if needed
+      // Check Casino (roulette at 20, blackjack at 38)
+      if (newPosition === 20 || newPosition === 38) {
       }
-
 
       if (passedGo) {
         toast.success("🎉 ¡Pasaste por la salida! +200 pts");
       }
 
-      // Mostrar propiedad después de que el jugador cae (reducido para mayor rapidez)
+      // Mostrar propiedad después de que el jugador cae
       setTimeout(() => {
         try {
           const property = boardProperties[newPosition];
 
           if (property) {
-            if (property.tipo === 'casino' || newPosition === 38) {
-              setCasinoName(property.nombre || "Gran Casino");
-              setShowCasinoModal(true);
-              return;
+            if (property.tipo === "casino" || newPosition === 20 || newPosition === 38) {
+              if (newPosition === 38) {
+                setBlackjackName(property.nombre || "Gran Casino");
+                setShowBlackjackModal(true);
+                return;
+              }
+              if (newPosition === 20) {
+                setCasinoName(property.nombre || "Gran Casino");
+                setShowCasinoModal(true);
+                return;
+              }
             }
 
-            const isCommunity = property.tipo === 'comunidad' || property.tipo === 'hacienda';
-            const isLuck = property.tipo === 'suerte' || property.tipo === 'loteria';
+            const isCommunity = property.tipo === "comunidad" || property.tipo === "hacienda";
+            const isLuck = property.tipo === "suerte" || property.tipo === "loteria";
 
             const applyCardLocally = (card: { effect: string; value: number; description: string }) => {
               setPlayersInGame((prev) => {
@@ -395,15 +392,15 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 const clamp = (n: number) => Math.max(0, n);
 
                 switch (card.effect) {
-                  case 'ganar_dinero':
+                  case "ganar_dinero":
                     trigger.money += card.value;
                     break;
 
-                  case 'perder_dinero':
+                  case "perder_dinero":
                     trigger.money = clamp(trigger.money - card.value);
                     break;
 
-                  case 'cobrar_jugadores': {
+                  case "cobrar_jugadores": {
                     let total = 0;
                     for (const p of others) {
                       const paid = Math.min(card.value, p.money);
@@ -414,7 +411,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                     break;
                   }
 
-                  case 'pagar_jugadores': {
+                  case "pagar_jugadores": {
                     let remaining = trigger.money;
                     for (const p of others) {
                       const paid = Math.min(card.value, remaining);
@@ -427,7 +424,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                   }
 
                   default:
-                    console.warn('Efecto de carta no soportado en frontend:', card.effect);
+                    console.warn("Efecto de carta no soportado en frontend:", card.effect);
                     break;
                 }
 
@@ -436,7 +433,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             };
 
             if (isCommunity || isLuck) {
-              // Mostrar modal con estado de carga y luego rellenarlo con la carta
               const withLoading = { ...property, cardLoading: true, card: undefined };
               setSelectedProperty(withLoading);
               setShowPropertyModal(true);
@@ -447,25 +443,24 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                   applyCardLocally(card);
                   setSelectedProperty((prevSel) => (prevSel ? { ...prevSel, cardLoading: false, card } : prevSel));
 
-                  // Feedback rápido
-                  if (card.effect === 'ganar_dinero' || card.effect === 'cobrar_jugadores') {
+                  if (card.effect === "ganar_dinero" || card.effect === "cobrar_jugadores") {
                     toast.success(card.description);
                   } else {
                     toast.error(card.description);
                   }
                 })
                 .catch((e) => {
-                  console.error('Error robando carta:', e);
+                  console.error("Error robando carta:", e);
                   setSelectedProperty((prevSel) => (prevSel ? { ...prevSel, cardLoading: false } : prevSel));
-                  toast.error('No se pudo robar una carta de la base de datos');
+                  toast.error("No se pudo robar una carta de la base de datos");
                 });
 
               return;
             }
 
             // Verificar si la propiedad está comprada por otro jugador
-            const propertyOwner = playersInGame.find(p =>
-              p.properties.some(prop => prop.propertyId === newPosition)
+            const propertyOwner = playersInGame.find((p) =>
+              p.properties.some((prop) => prop.propertyId === newPosition)
             );
 
             /*tram*/
@@ -488,14 +483,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             /*tram*/
 
             if (propertyOwner && propertyOwner.id !== currentPlayer) {
-              // Cobrar alquiler
-              const isCompany = property.tipo === 'compañia';
-              const isStation = property.tipo === 'estacion';
+              const isCompany = property.tipo === "compañia";
+              const isStation = property.tipo === "estacion";
               let rentAmount = property.alquiler || 0;
 
               if (isCompany) {
                 const companyPositions = boardProperties
-                  .map((p, idx) => (p?.tipo === 'compañia' ? idx : null))
+                  .map((p, idx) => (p?.tipo === "compañia" ? idx : null))
                   .filter((v): v is number => v !== null);
 
                 const ownerCompanyCount = propertyOwner.properties.filter((prop) =>
@@ -505,27 +499,23 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 const multiplier = ownerCompanyCount >= 2 ? 10 : 4;
                 rentAmount = diceTotal * multiplier;
               } else if (isStation) {
-                // Lógica de estaciones: 25, 50, 100, 200
                 const stationPositions = boardProperties
-                  .map((p, idx) => (p?.tipo === 'estacion' ? idx : null))
+                  .map((p, idx) => (p?.tipo === "estacion" ? idx : null))
                   .filter((v): v is number => v !== null);
 
                 const ownerStationCount = propertyOwner.properties.filter((prop) =>
                   stationPositions.includes(prop.propertyId)
                 ).length;
 
-                // Formula: 25 * 2^(n-1) -> 1=25, 2=50, 3=100, 4=200
                 rentAmount = 25 * Math.pow(2, Math.max(0, ownerStationCount - 1));
               }
 
               setPlayersInGame((prev) =>
                 prev.map((player) => {
                   if (player.id === currentPlayer) {
-                    // Descontar alquiler al jugador actual
                     const newMoney = Math.max(0, player.money - rentAmount);
                     return { ...player, money: newMoney };
                   } else if (player.id === propertyOwner.id) {
-                    // Dar alquiler al propietario
                     const newMoney = player.money + rentAmount;
                     return { ...player, money: newMoney };
                   }
@@ -533,7 +523,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 })
               );
 
-              // Verificar si el jugador quedó en bancarrota
               const currentPlayerAfterRent = playersInGame.find((p) => p.id === currentPlayer);
               const newMoneyAfterRent = Math.max(0, (currentPlayerAfterRent?.money ?? 0) - rentAmount);
 
@@ -543,7 +532,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
               }
 
-              // Añadir dueño a la propiedad para mostrar en el modal
               property.dueno = propertyOwner.name;
             }
 
@@ -551,14 +539,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             setShowPropertyModal(true);
           }
         } catch (innerError) {
-          console.error('Error al procesar la propiedad:', innerError);
+          console.error("Error al procesar la propiedad:", innerError);
           toast.error("Error al procesar la casilla");
         }
       }, 300);
     } catch (error) {
-      console.error('Error al tirar dados:', error);
+      console.error("Error al tirar dados:", error);
       toast.error("⚠️ Error al tirar los dados");
-      // Resetear el estado en caso de error
       setHasRolledDice(false);
     }
   };
@@ -578,7 +565,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       return;
     }
 
-    // Actualizar dinero y propiedades del jugador
     setPlayersInGame((prev) =>
       prev.map((player) => {
         if (player.id === currentPlayer) {
@@ -586,7 +572,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           return {
             ...player,
             money: Math.max(0, newMoney),
-            properties: [...player.properties, { propertyId, level: 0 }]
+            properties: [...player.properties, { propertyId, level: 0 }],
           };
         }
         return player;
@@ -597,12 +583,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
     toast.success(`✅ Compraste ${property.nombre} por ${property.precio} pts`);
 
-    // Verificar si quedó en bancarrota
     if (newMoneyAfterPurchase <= 0) {
       toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
     }
 
-    // Marcar la propiedad como comprada
     boardProperties[propertyId].dueno = currentPlayerData.name;
   };
 
@@ -642,7 +626,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     }, 150);
   };
 
-  // Cambiar turno al cerrar modal - solo a jugadores activos
+  // Cambiar turno al cerrar modal
   const handleClosePropertyModal = () => {
     setShowPropertyModal(false);
     endTurn();
@@ -651,6 +635,12 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const handleCloseCasinoModal = () => {
     setShowCasinoModal(false);
     setCasinoName(null);
+    endTurn();
+  };
+
+  const handleCloseBlackjackModal = () => {
+    setShowBlackjackModal(false);
+    setBlackjackName(null);
     endTurn();
   };
 
@@ -681,6 +671,27 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   /*tram*/
 
   const handleCasinoResult = (delta: number) => {
+    let moneyAfter: number | null = null;
+    let currentName: string | null = null;
+
+    setPlayersInGame((prev) =>
+      prev.map((player) => {
+        if (player.id === currentPlayer) {
+          const updatedMoney = Math.max(0, player.money + delta);
+          moneyAfter = updatedMoney;
+          currentName = player.name;
+          return { ...player, money: updatedMoney };
+        }
+        return player;
+      })
+    );
+
+    if (moneyAfter !== null && moneyAfter <= 0) {
+      toast.error(`💥 ¡${currentName ?? "El jugador"} ha quedado en bancarrota!`);
+    }
+  };
+
+  const handleBlackjackResult = (delta: number) => {
     let moneyAfter: number | null = null;
     let currentName: string | null = null;
 
@@ -751,7 +762,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             onError={(e) => {
               console.error("Error al cargar la imagen del tablero");
               const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
+              target.style.display = "none";
               toast.error("Error al cargar la imagen del tablero");
             }}
           />
@@ -787,7 +798,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             const offsetX = (idx % 2) * 10 - 5;
             const offsetY = Math.floor(idx / 2) * 10 - 5;
 
-            // Solo mostrar si el jugador sigue activo
             if (player.money <= 0) {
               return null;
             }
@@ -824,12 +834,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               <div
                 key={p.id}
                 onClick={() => isActive && setSelectedPlayerForProperties(p.id)}
-                className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${!isActive
-                  ? "border-gray-600/50 bg-black/40 opacity-50"
-                  : currentPlayer === p.id
-                    ? "border-amber-500 bg-amber-500/20"
-                    : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
-                  }`}
+                className={`p-2 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 ${
+                  !isActive
+                    ? "border-gray-600/50 bg-black/40 opacity-50"
+                    : currentPlayer === p.id
+                      ? "border-amber-500 bg-amber-500/20"
+                      : "border-gray-600/30 bg-black/20 hover:border-amber-500/50"
+                }`}
                 title={isActive ? `Click para ver propiedades de ${p.name}` : `${p.name} - ¡ELIMINADO!`}
               >
                 <div className={`w-4 h-4 rounded-full ${p.color} mx-auto mb-1`} />
@@ -837,7 +848,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 <p className={`text-xs font-bold ${isActive ? "text-amber-400" : "text-red-500"}`}>
                   {isActive ? `${p.money} pts` : "ELIMINADO"}
                 </p>
-                {/* Jail Indicator */}
                 {p.isInJail && (
                   <Badge variant="destructive" className="mt-1 text-[10px] h-4 px-1 py-0 bg-red-900 border-red-500 text-red-100">
                     En la cárcel
@@ -857,8 +867,9 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             <Button
               onClick={rollDice}
               disabled={hasRolledDice}
-              className={`bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white ${hasRolledDice ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+              className={`bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white ${
+                hasRolledDice ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             >
               <Dice1 className="w-4 h-4 mr-2" />
               Lanzar Dados
@@ -868,10 +879,11 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             {/* Dev mode: elegir dado */}
             <button
               onClick={() => setDevMode((v) => !v)}
-              className={`ml-2 px-2 py-1 rounded text-[10px] font-bold border transition-colors ${devMode
-                  ? 'bg-green-600 border-green-400 text-white'
-                  : 'bg-gray-700/50 border-gray-500/30 text-gray-400 hover:border-gray-400'
-                }`}
+              className={`ml-2 px-2 py-1 rounded text-[10px] font-bold border transition-colors ${
+                devMode
+                  ? "bg-green-600 border-green-400 text-white"
+                  : "bg-gray-700/50 border-gray-500/30 text-gray-400 hover:border-gray-400"
+              }`}
               title="Modo desarrollo: elegir número del dado"
             >
               🛠️ DEV
@@ -922,6 +934,15 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         onClose={handleCloseCasinoModal}
       />
 
+      <BlackjackModal
+        isOpen={showBlackjackModal}
+        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerName={playersInGame.find((p) => p.id === currentPlayer)?.name || "Jugador"}
+        casinoName={blackjackName || "Casino"}
+        onApplyResult={handleBlackjackResult}
+        onClose={handleCloseBlackjackModal}
+      />
+
       {/*tram*/}
       <TramCardModal
         isOpen={showTramModal}
@@ -936,9 +957,9 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       {selectedPlayerForProperties && (
         <PlayerPropertiesModal
           isOpen={true}
-          playerName={playersInGame.find(p => p.id === selectedPlayerForProperties)?.name || ""}
-          playerColor={playersInGame.find(p => p.id === selectedPlayerForProperties)?.color || ""}
-          properties={playersInGame.find(p => p.id === selectedPlayerForProperties)?.properties || []}
+          playerName={playersInGame.find((p) => p.id === selectedPlayerForProperties)?.name || ""}
+          playerColor={playersInGame.find((p) => p.id === selectedPlayerForProperties)?.color || ""}
+          properties={playersInGame.find((p) => p.id === selectedPlayerForProperties)?.properties || []}
           boardProperties={boardProperties}
           onClose={() => setSelectedPlayerForProperties(null)}
         />
