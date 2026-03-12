@@ -33,7 +33,7 @@ Ademas del flujo de juego, se han desarrollado las interfaces de las pantallas c
 **Cambios respecto al diseno del Hito 2:**
 - Se ha anadido una base de datos en memoria (InMemory) ademas de MySQL para gestionar las sesiones de juego activas, ya que los datos de partida no necesitan persistir tras reiniciar el servidor.
 - Se ha incorporado una casilla de casino con una ruleta interactiva y efectos de sonido generados proceduralmente, que no estaba prevista en el diseno original.
-- La mecanica de teletransporte entre estaciones (trams) tiene el backend preparado pero no se ha integrado todavia en el frontend.
+- Se ha integrado en frontend la mecanica de transporte entre estaciones (tram): al caer en una estacion propia, si el jugador tiene estaciones consecutivas compradas, puede elegir entre pasar o usar el tram para ir a la siguiente estacion consecutiva comprada.
 
 ---
 
@@ -59,7 +59,7 @@ A continuacion se listan los casos de uso del proyecto con su estado actual de i
 | CU14 | Determinar ganador | Implementado |
 | CU15 | Ver ranking de jugadores | Implementado |
 | CU16 | Ver perfil de usuario | Implementado |
-| CU17 | Teletransporte entre estaciones | En progreso (backend listo, falta frontend) |
+| CU17 | Teletransporte entre estaciones | Implementado |
 | CU18 | Comprar en la tienda | En progreso (interfaz lista, falta logica de compra) |
 | CU19 | Gestionar inventario | En progreso (interfaz lista, falta equipar/desequipar) |
 | CU20 | Configurar ajustes | En progreso (interfaz lista, falta persistencia) |
@@ -71,6 +71,21 @@ A continuacion se listan los casos de uso del proyecto con su estado actual de i
 | CU26 | Guardar resultado de partida en BD | Pendiente |
 
 **Flujo completo funcional:** Un usuario puede registrarse, iniciar sesion, acceder al menu, entrar a una partida de Monopoly y jugarla de principio a fin (tirar dados, comprar propiedades, pagar alquileres, ir a la carcel, robar cartas, jugar en el casino) hasta que se determina un ganador.
+
+### Implementacion de tram (CU17)
+
+La implementacion se ha realizado en frontend en el archivo `components/MonopolyScreen.tsx`, y toda la logica nueva esta delimitada entre comentarios `/*tram*/`.
+
+- **Archivo modificado**: `components/MonopolyScreen.tsx`
+- **Ubicacion exacta 1**: bloque `/*tram*/` de helpers en las lineas aproximadas 166-194.
+- **Ubicacion exacta 2**: bloque `/*tram*/` integrado en `rollDice` al resolver la casilla, en las lineas aproximadas 465-497.
+
+- **Bloque 1 (`/*tram*/`)**: helpers de estaciones (`getStationPositions`, `getOwnedStationPositions`, `getNextOwnedConsecutiveStation`) para validar que las estaciones sean consecutivas en tablero y propiedad del jugador.
+- **Bloque 2 (`/*tram*/`)**: integracion dentro del flujo de caida en casilla (en `rollDice`), que:
+	- detecta si el jugador cae en estacion propia,
+	- comprueba si existe siguiente estacion consecutiva tambien comprada,
+	- permite elegir `pasar` o `usar tram` (confirmacion simple),
+	- mueve al jugador a la siguiente estacion cuando se usa y finaliza turno.
 
 ---
 

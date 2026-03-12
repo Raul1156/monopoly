@@ -9,6 +9,7 @@ import { PropertyCardModal, type Property } from "./PropertyCardModal";
 import { PlayerPropertiesModal } from "./PlayerPropertiesModal";
 import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/apiService";
 import { CasinoRouletteModal } from "./CasinoRouletteModal";
+import { TramCardModal } from "./TramCardModal";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -29,6 +30,11 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [showCasinoModal, setShowCasinoModal] = useState(false);
   const [casinoName, setCasinoName] = useState<string | null>(null);
+  /*tram*/
+  const [showTramModal, setShowTramModal] = useState(false);
+  const [tramStationName, setTramStationName] = useState<string>("Estacion");
+  const [tramNextPosition, setTramNextPosition] = useState<number | null>(null);
+  /*tram*/
 
   // Dev mode: elegir número del dado para pruebas
   const [devMode, setDevMode] = useState(false);
@@ -162,6 +168,36 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     { left: "92.3%", top: "75.4%" },
     { left: "91.9%", top: "82.9%" },
   ];
+
+  /*tram*/
+  const getStationPositions = () =>
+    boardProperties
+      .map((p, idx) => (p?.tipo === "estacion" ? idx : null))
+      .filter((v): v is number => v !== null)
+      .sort((a, b) => a - b);
+
+  const getOwnedStationPositions = (player: { properties: PlayerProperty[] }) => {
+    const stationPositions = getStationPositions();
+    return player.properties
+      .map((p) => p.propertyId)
+      .filter((id) => stationPositions.includes(id))
+      .sort((a, b) => a - b);
+  };
+
+  const getNextOwnedConsecutiveStation = (fromPosition: number, ownedStationPositions: number[]) => {
+    const stationPositions = getStationPositions();
+    const fromIndex = stationPositions.indexOf(fromPosition);
+    if (fromIndex === -1) return null;
+
+    const nextStation = stationPositions[fromIndex + 1];
+    if (nextStation === undefined) return null;
+
+    // Debe ser consecutiva (siguiente tram del tablero) y estar comprada
+    if (ownedStationPositions.includes(nextStation)) return nextStation;
+
+    return null;
+  };
+  /*tram*/
 
 
   // Tirar dado
@@ -432,6 +468,25 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               p.properties.some(prop => prop.propertyId === newPosition)
             );
 
+            /*tram*/
+            const currentPlayerState = playersInGame.find((p) => p.id === currentPlayer);
+            const isOwnedTramByCurrentPlayer =
+              property.tipo === "estacion" &&
+              !!currentPlayerState?.properties.some((prop) => prop.propertyId === newPosition);
+
+            if (isOwnedTramByCurrentPlayer && currentPlayerState) {
+              const ownedStations = getOwnedStationPositions(currentPlayerState);
+              const nextOwnedConsecutiveStation = getNextOwnedConsecutiveStation(newPosition, ownedStations);
+
+              if (nextOwnedConsecutiveStation !== null) {
+                setTramStationName(property.nombre || "Estacion");
+                setTramNextPosition(nextOwnedConsecutiveStation);
+                setShowTramModal(true);
+                return;
+              }
+            }
+            /*tram*/
+
             if (propertyOwner && propertyOwner.id !== currentPlayer) {
               // Cobrar alquiler
               const isCompany = property.tipo === 'compañia';
@@ -598,6 +653,32 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     setCasinoName(null);
     endTurn();
   };
+
+  /*tram*/
+  const handleUseTram = () => {
+    if (tramNextPosition === null) return;
+
+    setPlayersInGame((prev) =>
+      prev.map((player) =>
+        player.id === currentPlayer
+          ? { ...player, position: tramNextPosition }
+          : player
+      )
+    );
+
+    toast.success(`🚋 Te has movido por tram hasta la casilla ${tramNextPosition}`);
+    setShowTramModal(false);
+    setTramNextPosition(null);
+    endTurn();
+  };
+
+  const handlePassTram = () => {
+    toast.info("🚋 Has decidido pasar y no usar el tram");
+    setShowTramModal(false);
+    setTramNextPosition(null);
+    endTurn();
+  };
+  /*tram*/
 
   const handleCasinoResult = (delta: number) => {
     let moneyAfter: number | null = null;
@@ -840,6 +921,16 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         onApplyResult={handleCasinoResult}
         onClose={handleCloseCasinoModal}
       />
+
+      {/*tram*/}
+      <TramCardModal
+        isOpen={showTramModal}
+        stationName={tramStationName}
+        nextStationPosition={tramNextPosition ?? 0}
+        onUseTram={handleUseTram}
+        onPass={handlePassTram}
+      />
+      {/*tram*/}
 
       {/* Modal de propiedades del jugador */}
       {selectedPlayerForProperties && (
