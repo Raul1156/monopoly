@@ -50,6 +50,12 @@ public class BoardService : IBoardService
                     Type = bs.Property.Type.ToString(),
                     Price = bs.Property.Price,
                     RentBase = bs.Property.RentBase,
+                    RentLevel1 = bs.Property.RentWithHouse1,
+                    RentLevel2 = bs.Property.RentWithHouse2,
+                    RentLevel3 = bs.Property.RentWithHouse3,
+                    RentLevel4 = bs.Property.RentWithHouse4,
+                    RentHotel = bs.Property.RentWithHotel,
+                    UpgradePrice = bs.Property.HousePrice,
                     Color = bs.Property.Color,
                     Position = bs.Property.Position
                 }
@@ -67,6 +73,12 @@ public class BoardService : IBoardService
             Type = p.Type.ToString(),
             Price = p.Price,
             RentBase = p.RentBase,
+            RentLevel1 = p.RentWithHouse1,
+            RentLevel2 = p.RentWithHouse2,
+            RentLevel3 = p.RentWithHouse3,
+            RentLevel4 = p.RentWithHouse4,
+            RentHotel = p.RentWithHotel,
+            UpgradePrice = p.HousePrice,
             Color = p.Color,
             Position = p.Position
         }).ToList();
@@ -89,6 +101,12 @@ public class BoardService : IBoardService
             Type = p.Type.ToString(),
             Price = p.Price,
             RentBase = p.RentBase,
+            RentLevel1 = p.RentWithHouse1,
+            RentLevel2 = p.RentWithHouse2,
+            RentLevel3 = p.RentWithHouse3,
+            RentLevel4 = p.RentWithHouse4,
+            RentHotel = p.RentWithHotel,
+            UpgradePrice = p.HousePrice,
             Color = p.Color,
             Position = p.Position
         };

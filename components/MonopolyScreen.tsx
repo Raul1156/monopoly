@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { MapPin, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Home } from "lucide-react";
@@ -11,6 +11,7 @@ import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/ap
 import { CasinoRouletteModal } from "./CasinoRouletteModal";
 import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -18,7 +19,59 @@ interface MonopolyScreenProps {
 
 interface PlayerProperty {
   propertyId: number;
+  propertyDbId?: number;
   level?: number;
+}
+
+interface CasillaUpgradeMarkerProps {
+  position: number;
+  level: number;
+  title?: string;
+}
+
+function CasillaUpgradeMarker({ position, level, title }: CasillaUpgradeMarkerProps) {
+  const [localLevel, setLocalLevel] = useState(level);
+
+  useEffect(() => {
+    setLocalLevel(level);
+  }, [level]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ position: number; level: number }>).detail;
+      if (!detail || detail.position !== position) return;
+      setLocalLevel(detail.level);
+    };
+
+    window.addEventListener("PropertyUpgradeChanged", handler as EventListener);
+    return () => {
+      window.removeEventListener("PropertyUpgradeChanged", handler as EventListener);
+    };
+  }, [position]);
+
+  if (localLevel <= 0) return null;
+
+  if (localLevel >= 5) {
+    return (
+      <div
+        className="w-4 h-3 bg-red-600 border border-white rounded-sm shadow"
+        title={title ? `${title} - Hotel` : "Hotel"}
+      />
+    );
+  }
+
+  const houses = Array.from({ length: Math.min(localLevel, 4) });
+  return (
+    <div className="flex space-x-0.5">
+      {houses.map((_, idx) => (
+        <div
+          key={idx}
+          className="w-2 h-2 bg-green-600 border border-white rounded-sm shadow"
+          title={title ? `${title} - Casa ${idx + 1}` : `Casa ${idx + 1}`}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
@@ -44,6 +97,17 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [debugDiceValue, setDebugDiceValue] = useState<number>(1);
 
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
+  const gameId = 1;
+
+  const propertyPositionByDbId = useMemo(() => {
+    const map = new Map<number, number>();
+    boardProperties.forEach((prop, idx) => {
+      if (prop?.propertyDbId) {
+        map.set(prop.propertyDbId, idx);
+      }
+    });
+    return map;
+  }, [boardProperties]);
 
   useEffect(() => {
     let mounted = true;
@@ -81,6 +145,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
       const base: Property = {
         id: space.position,
+        propertyDbId: space.property?.id,
         nombre: space.name,
         tipo,
       };
@@ -90,6 +155,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           ...base,
           precio: space.property?.price,
           alquiler: space.property?.rentBase,
+          alquilerNivel1: space.property?.rentLevel1,
+          alquilerNivel2: space.property?.rentLevel2,
+          alquilerNivel3: space.property?.rentLevel3,
+          alquilerNivel4: space.property?.rentLevel4,
+          alquilerHotel: space.property?.rentHotel,
+          precioMejora: space.property?.upgradePrice,
+          colorGrupo: space.property?.color,
         };
       }
 
@@ -119,6 +191,59 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+    const hubUrl = apiBase.replace(/\/?api\/?$/, "") + "/hubs/game";
+    const connection = new HubConnectionBuilder()
+      .withUrl(hubUrl)
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build();
+
+    let active = true;
+
+    const start = async () => {
+      try {
+        await connection.start();
+        await connection.invoke("JoinGame", gameId);
+      } catch (err) {
+        console.warn("SignalR connection failed:", err);
+      }
+    };
+
+    connection.on("PropertyUpgradeChanged", (payload: { propertyId: number; level: number; ownerId: number; money?: number }) => {
+      if (!active) return;
+      const position = propertyPositionByDbId.get(payload.propertyId);
+      if (position === undefined) return;
+
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          if (player.id !== payload.ownerId) return player;
+
+          const existing = player.properties.find((p) => p.propertyId === position);
+          const updatedProperties = existing
+            ? player.properties.map((p) =>
+                p.propertyId === position ? { ...p, level: payload.level } : p
+              )
+            : [...player.properties, { propertyId: position, propertyDbId: payload.propertyId, level: payload.level }];
+
+          return {
+            ...player,
+            money: payload.money ?? player.money,
+            properties: updatedProperties,
+          };
+        })
+      );
+    });
+
+    start();
+
+    return () => {
+      active = false;
+      connection.stop();
+    };
+  }, [gameId, propertyPositionByDbId]);
 
   // Jugadores: todos empiezan en la casilla 0
   const [playersInGame, setPlayersInGame] = useState([
@@ -201,6 +326,88 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     return null;
   };
   /*tram*/
+
+  const getPropertyLevelForPlayer = (player: { properties: PlayerProperty[] }, position: number) => {
+    return player.properties.find((p) => p.propertyId === position)?.level ?? 0;
+  };
+
+  const getGroupPositions = (colorGroup?: string) => {
+    if (!colorGroup) return [];
+    return boardProperties
+      .map((p, idx) => (p?.tipo === "propiedad" && p.colorGrupo === colorGroup ? idx : null))
+      .filter((v): v is number => v !== null);
+  };
+
+  const ownsFullGroup = (player: { properties: PlayerProperty[] }, colorGroup?: string) => {
+    const groupPositions = getGroupPositions(colorGroup);
+    if (groupPositions.length === 0) return false;
+    return groupPositions.every((pos) => player.properties.some((p) => p.propertyId === pos));
+  };
+
+  const getBuildEligibility = (player: { properties: PlayerProperty[]; money: number }, property: Property | null) => {
+    if (!property || property.tipo !== "propiedad") {
+      return { canBuild: false, reason: "Solo se pueden mejorar propiedades" };
+    }
+
+    const ownsProperty = player.properties.some((p) => p.propertyId === property.id);
+    if (!ownsProperty) {
+      return { canBuild: false, reason: "No eres el propietario" };
+    }
+
+    if (!ownsFullGroup(player, property.colorGrupo)) {
+      return { canBuild: false, reason: "Necesitas el grupo completo" };
+    }
+
+    const currentLevel = getPropertyLevelForPlayer(player, property.id);
+    if (currentLevel >= 5) {
+      return { canBuild: false, reason: "Ya tiene hotel" };
+    }
+
+    const cost = property.precioMejora ?? 0;
+    if (player.money < cost || cost <= 0) {
+      return { canBuild: false, reason: "Dinero insuficiente" };
+    }
+
+    const groupPositions = getGroupPositions(property.colorGrupo);
+    const groupLevels = groupPositions.map((pos) => getPropertyLevelForPlayer(player, pos));
+    const newLevel = currentLevel + 1;
+
+    if (newLevel === 5 && groupLevels.some((lvl) => lvl < 4)) {
+      return { canBuild: false, reason: "Todas deben tener 4 casas" };
+    }
+
+    const adjustedLevels = groupLevels.map((lvl, idx) =>
+      groupPositions[idx] === property.id ? newLevel : lvl
+    );
+
+    const maxLevel = Math.max(...adjustedLevels);
+    const minLevel = Math.min(...adjustedLevels);
+    if (maxLevel - minLevel > 1) {
+      return { canBuild: false, reason: "Construye uniforme" };
+    }
+
+    return { canBuild: true, reason: "" };
+  };
+
+  const getBuildStateForProperty = (player: { properties: PlayerProperty[]; money: number }, propertyId: number) => {
+    const property = boardProperties[propertyId];
+    if (!property) return { canBuild: false, reason: "Propiedad no encontrada", cost: 0 };
+    const eligibility = getBuildEligibility(player, property);
+    return {
+      canBuild: eligibility.canBuild,
+      reason: eligibility.reason,
+      cost: property.precioMejora ?? 0,
+    };
+  };
+
+  const getRentForProperty = (property: Property, level: number) => {
+    if (level <= 0) return property.alquiler || 0;
+    if (level === 1) return property.alquilerNivel1 ?? property.alquiler ?? 0;
+    if (level === 2) return property.alquilerNivel2 ?? property.alquiler ?? 0;
+    if (level === 3) return property.alquilerNivel3 ?? property.alquiler ?? 0;
+    if (level === 4) return property.alquilerNivel4 ?? property.alquiler ?? 0;
+    return property.alquilerHotel ?? property.alquiler ?? 0;
+  };
 
   // Tirar dado
   const rollDice = async () => {
@@ -486,6 +693,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               const isCompany = property.tipo === "compañia";
               const isStation = property.tipo === "estacion";
               let rentAmount = property.alquiler || 0;
+              const ownedEntry = propertyOwner.properties.find((prop) => prop.propertyId === newPosition);
+              const propertyLevel = ownedEntry?.level ?? 0;
 
               if (isCompany) {
                 const companyPositions = boardProperties
@@ -508,6 +717,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                 ).length;
 
                 rentAmount = 25 * Math.pow(2, Math.max(0, ownerStationCount - 1));
+              } else {
+                rentAmount = getRentForProperty(property, propertyLevel);
               }
 
               setPlayersInGame((prev) =>
@@ -555,6 +766,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     const currentPlayerData = playersInGame[currentPlayer - 1];
     const property = boardProperties[propertyId];
 
+    const propertyDbId = property?.propertyDbId;
+
     if (!property || !property.precio) {
       toast.error("No se puede comprar esta casilla");
       return;
@@ -572,7 +785,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           return {
             ...player,
             money: Math.max(0, newMoney),
-            properties: [...player.properties, { propertyId, level: 0 }],
+            properties: [...player.properties, { propertyId, propertyDbId, level: 0 }],
           };
         }
         return player;
@@ -588,6 +801,73 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     }
 
     boardProperties[propertyId].dueno = currentPlayerData.name;
+
+    if (propertyDbId) {
+      apiService.buyProperty(gameId, currentPlayer, propertyDbId)
+        .catch((err) => {
+          console.warn("No se pudo persistir la compra:", err);
+        });
+    }
+  };
+
+  const handleBuildUpgrade = (propertyId: number) => {
+    const currentPlayerData = playersInGame[currentPlayer - 1];
+    const property = boardProperties[propertyId];
+
+    if (!property || property.tipo !== "propiedad") {
+      toast.error("No se puede construir en esta casilla");
+      return;
+    }
+
+    const eligibility = getBuildEligibility(currentPlayerData, property);
+    if (!eligibility.canBuild) {
+      toast.error(eligibility.reason || "No puedes construir aquí");
+      return;
+    }
+
+    const cost = property.precioMejora ?? 0;
+    const nextLevel = (currentPlayerData.properties.find((p) => p.propertyId === propertyId)?.level ?? 0) + 1;
+
+    setPlayersInGame((prev) =>
+      prev.map((player) => {
+        if (player.id !== currentPlayer) return player;
+        const hasEntry = player.properties.some((p) => p.propertyId === propertyId);
+        const updatedProperties = hasEntry
+          ? player.properties.map((p) =>
+              p.propertyId === propertyId ? { ...p, level: nextLevel } : p
+            )
+          : [...player.properties, { propertyId, propertyDbId: property.propertyDbId, level: nextLevel }];
+
+        return {
+          ...player,
+          money: Math.max(0, player.money - cost),
+          properties: updatedProperties,
+        };
+      })
+    );
+
+    toast.success(`🏗️ Mejora comprada en ${property.nombre}`);
+
+    if (property.propertyDbId) {
+      apiService.buildUpgrade(gameId, currentPlayer, property.propertyDbId)
+        .then((res) => {
+          setPlayersInGame((prev) =>
+            prev.map((player) => {
+              if (player.id !== currentPlayer) return player;
+              return {
+                ...player,
+                money: res.moneyLeft,
+                properties: player.properties.map((p) =>
+                  p.propertyId === propertyId ? { ...p, level: res.level } : p
+                ),
+              };
+            })
+          );
+        })
+        .catch((err) => {
+          console.warn("No se pudo persistir la mejora:", err);
+        });
+    }
   };
 
   const handlePassProperty = () => {
@@ -719,6 +999,11 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     return <DiceIcon className="w-8 h-8 text-amber-400" />;
   };
 
+  const currentPlayerData = playersInGame[currentPlayer - 1];
+  const buildEligibility = selectedProperty && currentPlayerData
+    ? getBuildEligibility(currentPlayerData, selectedProperty)
+    : { canBuild: false, reason: "" };
+
   // Manejo de errores
   if (error) {
     return (
@@ -787,6 +1072,34 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
                   <div
                     className={`w-3 h-3 rounded-full border-2 border-white shadow-lg ${player.color}`}
                     title={`${boardProperties[prop.propertyId]?.nombre} (${player.name})`}
+                  />
+                </div>
+              );
+            })
+          )}
+
+          {/* Casas y hoteles */}
+          {playersInGame.map((player) =>
+            player.properties.map((prop) => {
+              const level = prop.level ?? 0;
+              if (level <= 0) return null;
+
+              const pos = boardPositions[prop.propertyId] || boardPositions[0];
+              const offsetX = 0;
+              const offsetY = -12;
+              return (
+                <div
+                  key={`upgrade-${player.id}-${prop.propertyId}`}
+                  className="absolute"
+                  style={{
+                    ...pos,
+                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                  }}
+                >
+                  <CasillaUpgradeMarker
+                    position={prop.propertyId}
+                    level={level}
+                    title={boardProperties[prop.propertyId]?.nombre}
                   />
                 </div>
               );
@@ -919,10 +1232,14 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       <PropertyCardModal
         isOpen={showPropertyModal}
         property={selectedProperty}
-        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerMoney={currentPlayerData?.money || 0}
         onClose={handleClosePropertyModal}
         onBuy={handleBuyProperty}
         onPass={handlePassProperty}
+        onBuild={handleBuildUpgrade}
+        canBuild={buildEligibility.canBuild}
+        buildCost={selectedProperty?.precioMejora}
+        buildDisabledReason={buildEligibility.reason}
       />
 
       <CasinoRouletteModal
@@ -961,6 +1278,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           playerColor={playersInGame.find((p) => p.id === selectedPlayerForProperties)?.color || ""}
           properties={playersInGame.find((p) => p.id === selectedPlayerForProperties)?.properties || []}
           boardProperties={boardProperties}
+          isCurrentPlayer={selectedPlayerForProperties === currentPlayer}
+          onBuild={handleBuildUpgrade}
+          getBuildState={(propertyId) =>
+            currentPlayerData
+              ? getBuildStateForProperty(currentPlayerData, propertyId)
+              : { canBuild: false, reason: "No es tu turno", cost: 0 }
+          }
           onClose={() => setSelectedPlayerForProperties(null)}
         />
       )}

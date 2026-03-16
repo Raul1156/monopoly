@@ -111,6 +111,12 @@ public class PropertyDto
     public string Type { get; set; } = string.Empty;
     public int Price { get; set; }
     public int RentBase { get; set; }
+    public int? RentLevel1 { get; set; }
+    public int? RentLevel2 { get; set; }
+    public int? RentLevel3 { get; set; }
+    public int? RentLevel4 { get; set; }
+    public int? RentHotel { get; set; }
+    public int? UpgradePrice { get; set; }
     public string Color { get; set; } = string.Empty;
     public int Position { get; set; }
 }

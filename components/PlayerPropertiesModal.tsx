@@ -13,6 +13,7 @@ interface Property {
   tipo: string;
   precio?: number;
   alquiler?: number;
+  precioMejora?: number;
 }
 
 interface PlayerPropertiesModalProps {
@@ -21,6 +22,9 @@ interface PlayerPropertiesModalProps {
   playerColor: string;
   properties: PlayerProperty[];
   boardProperties: Property[];
+  isCurrentPlayer: boolean;
+  onBuild: (propertyId: number) => void;
+  getBuildState: (propertyId: number) => { canBuild: boolean; reason: string; cost: number };
   onClose: () => void;
 }
 
@@ -30,6 +34,9 @@ export function PlayerPropertiesModal({
   playerColor,
   properties,
   boardProperties,
+  isCurrentPlayer,
+  onBuild,
+  getBuildState,
   onClose
 }: PlayerPropertiesModalProps) {
   if (!isOpen) return null;
@@ -107,6 +114,9 @@ export function PlayerPropertiesModal({
               {properties.length > 0 ? (
                 properties.map((prop, idx) => {
                   const detail = getPropertyDetails(prop.propertyId);
+                  const buildState = detail && isCurrentPlayer
+                    ? getBuildState(prop.propertyId)
+                    : { canBuild: false, reason: "", cost: 0 };
                   return (
                     <div
                       key={idx}
@@ -123,8 +133,25 @@ export function PlayerPropertiesModal({
                         <p className="font-bold text-gray-800">{detail?.precio} pts</p>
                         {prop.level !== undefined && prop.level > 0 && (
                           <Badge className="mt-1 bg-amber-600/30 text-amber-700 border-amber-500/30 text-xs">
-                            Level {prop.level}
+                            {prop.level >= 5 ? "Hotel" : `Casas: ${prop.level}`}
                           </Badge>
+                        )}
+                        {isCurrentPlayer && detail?.tipo === "propiedad" && (
+                          <Button
+                            size="sm"
+                            onClick={() => onBuild(prop.propertyId)}
+                            disabled={!buildState.canBuild}
+                            className={`mt-2 w-full text-xs font-bold ${
+                              buildState.canBuild
+                                ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                : "bg-gray-300 text-gray-600 cursor-not-allowed"
+                            }`}
+                            title={buildState.canBuild ? undefined : buildState.reason}
+                          >
+                            {buildState.canBuild
+                              ? `Construir (${buildState.cost} pts)`
+                              : "No se puede"}
+                          </Button>
                         )}
                       </div>
                     </div>

@@ -13,6 +13,8 @@ public class MonopolyMySqlDbContext : DbContext
     public DbSet<UsuarioEntity> Usuarios => Set<UsuarioEntity>();
     public DbSet<CasillaEntity> Casillas => Set<CasillaEntity>();
     public DbSet<PropiedadEntity> Propiedades => Set<PropiedadEntity>();
+    public DbSet<PropiedadPartidaEntity> PropiedadesPartida => Set<PropiedadPartidaEntity>();
+    public DbSet<PartidaUsuarioEntity> PartidasUsuarios => Set<PartidaUsuarioEntity>();
     public DbSet<CartaEntity> Cartas => Set<CartaEntity>();
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
     public DbSet<InventarioEntity> Inventario => Set<InventarioEntity>();
@@ -68,6 +70,8 @@ public class MonopolyMySqlDbContext : DbContext
             entity.Property(e => e.AlquilerNivel1).HasColumnName("alquiler_nivel_1");
             entity.Property(e => e.AlquilerNivel2).HasColumnName("alquiler_nivel_2");
             entity.Property(e => e.AlquilerNivel3).HasColumnName("alquiler_nivel_3");
+            entity.Property(e => e.AlquilerNivel4).HasColumnName("alquiler_nivel_4");
+            entity.Property(e => e.AlquilerHotel).HasColumnName("alquiler_hotel");
             entity.Property(e => e.PrecioMejora).HasColumnName("precio_mejora");
             entity.Property(e => e.ColorGrupo).HasColumnName("color_grupo").HasMaxLength(50);
 
@@ -75,6 +79,27 @@ public class MonopolyMySqlDbContext : DbContext
                 .WithOne(c => c.Propiedad)
                 .HasForeignKey<PropiedadEntity>(e => e.CasillaId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PropiedadPartidaEntity>(entity =>
+        {
+            entity.ToTable("propiedades_partida");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PartidaId).HasColumnName("partida_id").IsRequired();
+            entity.Property(e => e.PropiedadId).HasColumnName("propiedad_id").IsRequired();
+            entity.Property(e => e.Nivel).HasColumnName("nivel").IsRequired();
+            entity.Property(e => e.PropietarioId).HasColumnName("propietario_id").IsRequired();
+            entity.HasIndex(e => new { e.PartidaId, e.PropiedadId });
+        });
+
+        modelBuilder.Entity<PartidaUsuarioEntity>(entity =>
+        {
+            entity.ToTable("partida_usuarios");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PartidaId).HasColumnName("partida_id").IsRequired();
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
+            entity.Property(e => e.DineroActual).HasColumnName("dinero_actual").IsRequired();
+            entity.HasIndex(e => new { e.PartidaId, e.UsuarioId });
         });
 
         modelBuilder.Entity<CartaEntity>(entity =>

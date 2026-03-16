@@ -4,6 +4,9 @@ using MonopolyAPI.Services;
 using MonopolyAPI.Data;
 using MonopolyAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using MonopolyAPI.Hubs;
+using MonopolyAPI.Data.MySqlEntities;
 
 namespace MonopolyAPI.Controllers;
 
@@ -13,11 +16,19 @@ public class GameActionsController : ControllerBase
 {
     private readonly IGameSessionService _gameSessionService;
     private readonly MonopolyDbContext _context;
+    private readonly MonopolyMySqlDbContext _mySql;
+    private readonly IHubContext<GameHub> _hubContext;
 
-    public GameActionsController(IGameSessionService gameSessionService, MonopolyDbContext context)
+    public GameActionsController(
+        IGameSessionService gameSessionService,
+        MonopolyDbContext context,
+        MonopolyMySqlDbContext mySql,
+        IHubContext<GameHub> hubContext)
     {
         _gameSessionService = gameSessionService;
         _context = context;
+        _mySql = mySql;
+        _hubContext = hubContext;
     }
 
     [HttpPost("roll-dice")]
@@ -153,6 +164,13 @@ public class GameActionsController : ControllerBase
         public List<int> OwnedStationPositions { get; set; } = new();
     }
 
+    public class BuildUpgradeDto
+    {
+        public int GameId { get; set; }
+        public int PlayerId { get; set; }
+        public int PropertyId { get; set; }
+    }
+
     [HttpPost("use-station")]
     public async Task<ActionResult<MoveResultDto>> UseStation([FromBody] UseStationDto dto)
     {
@@ -259,32 +277,90 @@ public class GameActionsController : ControllerBase
             if (player.IsBankrupt)
                 return BadRequest("Bankrupt player cannot buy properties");
 
-            var property = await _context.Properties
+            var property = await _mySql.Propiedades
+                .Include(p => p.Casilla)
                 .FirstOrDefaultAsync(p => p.Id == dto.PropertyId);
 
             if (property == null)
                 return NotFound("Property not found");
 
-            if (player.Money < property.Price)
-                return BadRequest("Not enough money");
+            var tipoCasilla = property.Casilla?.Tipo?.ToUpperInvariant();
+            if (tipoCasilla is not ("PROPIEDAD" or "ESTACION" or "COMPANIA" or "COMPAÑIA"))
+                return BadRequest("Space is not buyable");
 
-            var existingOwnership = await _context.PropertyOwnerships
-                .AnyAsync(po => po.PropertyId == dto.PropertyId);
+            var existingOwnership = await _mySql.PropiedadesPartida
+                .AnyAsync(po => po.PartidaId == dto.GameId && po.PropiedadId == dto.PropertyId);
 
             if (existingOwnership)
                 return BadRequest("Property already owned");
 
-            player.Money -= property.Price;
+            var partidaUsuario = await _mySql.PartidasUsuarios
+                .FirstOrDefaultAsync(pu => pu.PartidaId == dto.GameId && pu.UsuarioId == player.UserId);
+
+            if (partidaUsuario == null)
+            {
+                partidaUsuario = new PartidaUsuarioEntity
+                {
+                    PartidaId = dto.GameId,
+                    UsuarioId = player.UserId,
+                    DineroActual = player.Money
+                };
+                _mySql.PartidasUsuarios.Add(partidaUsuario);
+            }
+
+            if (partidaUsuario.DineroActual < property.Precio)
+                return BadRequest("Not enough money");
+
+            partidaUsuario.DineroActual -= property.Precio;
+            player.Money = partidaUsuario.DineroActual;
+
+            var inMemoryProperty = await _context.Properties
+                .FirstOrDefaultAsync(p => p.Id == property.Id);
+
+            if (inMemoryProperty == null)
+            {
+                inMemoryProperty = new Models.Property
+                {
+                    Id = property.Id,
+                    Name = property.Nombre,
+                    Type = tipoCasilla == "PROPIEDAD" ? PropertyType.Street
+                        : tipoCasilla == "ESTACION" ? PropertyType.Station
+                        : PropertyType.Utility,
+                    Price = property.Precio,
+                    RentBase = property.AlquilerBase,
+                    RentWithHouse1 = property.AlquilerNivel1 ?? property.AlquilerBase,
+                    RentWithHouse2 = property.AlquilerNivel2 ?? property.AlquilerBase,
+                    RentWithHouse3 = property.AlquilerNivel3 ?? property.AlquilerBase,
+                    RentWithHouse4 = property.AlquilerNivel4 ?? property.AlquilerBase,
+                    RentWithHotel = property.AlquilerHotel ?? property.AlquilerBase,
+                    HousePrice = property.PrecioMejora ?? 0,
+                    HotelPrice = property.PrecioMejora ?? 0,
+                    Color = property.ColorGrupo ?? string.Empty,
+                    Position = property.Casilla?.Posicion ?? 0
+                };
+                _context.Properties.Add(inMemoryProperty);
+            }
 
             var ownership = new Models.PropertyOwnership
             {
                 PlayerInGameId = dto.PlayerId,
-                PropertyId = dto.PropertyId,
+                PropertyId = inMemoryProperty.Id,
                 AcquiredAt = DateTime.UtcNow
             };
 
+            var partidaPropiedad = new PropiedadPartidaEntity
+            {
+                PartidaId = dto.GameId,
+                PropiedadId = property.Id,
+                Nivel = 0,
+                PropietarioId = player.UserId
+            };
+
             _context.PropertyOwnerships.Add(ownership);
+            _mySql.PropiedadesPartida.Add(partidaPropiedad);
+
             await _context.SaveChangesAsync();
+            await _mySql.SaveChangesAsync();
 
             return Ok(new { message = "Property purchased successfully", moneyLeft = player.Money });
         }
@@ -295,7 +371,13 @@ public class GameActionsController : ControllerBase
     }
 
     [HttpPost("pay-rent")]
-    public async Task<ActionResult> PayRent([FromQuery] int fromPlayerId, [FromQuery] int toPlayerId, [FromQuery] int amount, [FromQuery] int gameId)
+    public async Task<ActionResult> PayRent(
+        [FromQuery] int fromPlayerId,
+        [FromQuery] int toPlayerId,
+        [FromQuery] int amount,
+        [FromQuery] int gameId,
+        [FromQuery] int? propertyId = null,
+        [FromQuery] int? diceTotal = null)
     {
         try
         {
@@ -310,25 +392,47 @@ public class GameActionsController : ControllerBase
             if (fromPlayer.IsBankrupt)
                 return BadRequest("Player is already bankrupt");
 
-            if (fromPlayer.Money < amount)
+            var rentAmount = amount;
+            if (rentAmount <= 0 && propertyId.HasValue)
+            {
+                var rentResult = await CalculateRentAsync(gameId, toPlayer.UserId, propertyId.Value, diceTotal);
+                if (rentResult.error != null)
+                    return BadRequest(rentResult.error);
+
+                rentAmount = rentResult.amount;
+            }
+
+            if (rentAmount <= 0)
+                return BadRequest("Invalid rent amount");
+
+            var fromWallet = await GetOrCreatePartidaUsuario(gameId, fromPlayer.UserId, fromPlayer.Money);
+            var toWallet = await GetOrCreatePartidaUsuario(gameId, toPlayer.UserId, toPlayer.Money);
+
+            if (fromWallet.DineroActual < rentAmount)
             {
                 // Pagar lo que puede
-                toPlayer.Money += fromPlayer.Money;
+                toPlayer.Money += fromWallet.DineroActual;
+                toWallet.DineroActual += fromWallet.DineroActual;
+                fromWallet.DineroActual = 0;
                 fromPlayer.Money = 0;
                 fromPlayer.IsBankrupt = true;
                 await _context.SaveChangesAsync();
+                await _mySql.SaveChangesAsync();
                 
                 return Ok(new { 
                     message = "Player bankrupt and eliminated from the game", 
                     isBankrupt = true,
                     playerEliminatedId = fromPlayerId,
-                    transferredAmount = fromPlayer.Money
+                    transferredAmount = 0
                 });
             }
 
-            fromPlayer.Money -= amount;
-            toPlayer.Money += amount;
+            fromPlayer.Money -= rentAmount;
+            toPlayer.Money += rentAmount;
+            fromWallet.DineroActual -= rentAmount;
+            toWallet.DineroActual += rentAmount;
             await _context.SaveChangesAsync();
+            await _mySql.SaveChangesAsync();
 
             return Ok(new { 
                 message = "Rent paid successfully", 
@@ -340,5 +444,226 @@ public class GameActionsController : ControllerBase
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    [HttpPost("build-upgrade")]
+    public async Task<ActionResult> BuildUpgrade([FromBody] BuildUpgradeDto dto)
+    {
+        try
+        {
+            var game = await _context.Games
+                .Include(g => g.Players)
+                .FirstOrDefaultAsync(g => g.Id == dto.GameId);
+
+            if (game == null)
+                return NotFound("Game not found");
+
+            var player = await _context.PlayersInGame
+                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+
+            if (player == null)
+                return NotFound("Player not found");
+
+            var currentTurnPlayer = game.Players.FirstOrDefault(p => p.TurnOrder == game.CurrentTurn && !p.IsBankrupt);
+            if (currentTurnPlayer == null || currentTurnPlayer.Id != player.Id)
+                return BadRequest("Not this player's turn");
+
+            if (player.IsBankrupt)
+                return BadRequest("Bankrupt player cannot build");
+
+            var propiedad = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .FirstOrDefaultAsync(p => p.Id == dto.PropertyId);
+
+            if (propiedad == null)
+                return NotFound("Property not found");
+
+            if (!string.Equals(propiedad.Casilla?.Tipo, "PROPIEDAD", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Only street properties can be upgraded");
+
+            if (string.IsNullOrWhiteSpace(propiedad.ColorGrupo))
+                return BadRequest("Property has no color group");
+
+            var allGroupProps = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .Where(p => p.ColorGrupo == propiedad.ColorGrupo && p.Casilla != null && p.Casilla.Tipo == "PROPIEDAD")
+                .ToListAsync();
+
+            if (allGroupProps.Count == 0)
+                return BadRequest("No properties found in this color group");
+
+            var ownedGroup = await _mySql.PropiedadesPartida
+                .Where(pp => pp.PartidaId == dto.GameId
+                             && pp.PropietarioId == player.UserId
+                             && allGroupProps.Select(p => p.Id).Contains(pp.PropiedadId))
+                .ToListAsync();
+
+            if (ownedGroup.Count != allGroupProps.Count)
+                return BadRequest("Player must own all properties in this color group");
+
+            var currentOwnership = ownedGroup.FirstOrDefault(pp => pp.PropiedadId == dto.PropertyId);
+            if (currentOwnership == null)
+                return BadRequest("Property is not owned by the player");
+
+            var currentLevel = currentOwnership.Nivel;
+            if (currentLevel >= 5)
+                return BadRequest("Property already has a hotel");
+
+            var upgradePrice = propiedad.PrecioMejora ?? 0;
+            if (upgradePrice <= 0)
+                return BadRequest("Property has no upgrade price");
+
+            var wallet = await GetOrCreatePartidaUsuario(dto.GameId, player.UserId, player.Money);
+            if (wallet.DineroActual < upgradePrice)
+                return BadRequest("Not enough money for upgrade");
+
+            var newLevel = currentLevel + 1;
+
+            if (newLevel == 5 && ownedGroup.Any(g => g.Nivel < 4))
+                return BadRequest("All properties in the group must have 4 houses before building a hotel");
+
+            var levelsAfter = ownedGroup
+                .Select(g => g.PropiedadId == currentOwnership.PropiedadId ? newLevel : g.Nivel)
+                .ToList();
+
+            var maxLevel = levelsAfter.Max();
+            var minLevel = levelsAfter.Min();
+            if (maxLevel - minLevel > 1)
+                return BadRequest("Build evenly across the color group");
+
+            currentOwnership.Nivel = newLevel;
+            wallet.DineroActual -= upgradePrice;
+            player.Money = wallet.DineroActual;
+
+            var ownership = await _context.PropertyOwnerships
+                .FirstOrDefaultAsync(po => po.PlayerInGameId == dto.PlayerId && po.PropertyId == dto.PropertyId);
+
+            if (ownership != null)
+            {
+                if (newLevel >= 5)
+                {
+                    ownership.Houses = 4;
+                    ownership.HasHotel = true;
+                }
+                else
+                {
+                    ownership.Houses = newLevel;
+                    ownership.HasHotel = false;
+                }
+            }
+
+            await _mySql.SaveChangesAsync();
+            await _context.SaveChangesAsync();
+
+            await _hubContext.Clients
+                .Group(GameHub.GetGameGroup(dto.GameId))
+                .SendAsync("PropertyUpgradeChanged", new
+                {
+                    propertyId = dto.PropertyId,
+                    level = newLevel,
+                    ownerId = player.UserId,
+                    gameId = dto.GameId,
+                    money = wallet.DineroActual
+                });
+
+            return Ok(new { message = "Upgrade purchased", level = newLevel, moneyLeft = wallet.DineroActual });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    private async Task<(int amount, string? error)> CalculateRentAsync(int gameId, int ownerUserId, int propertyId, int? diceTotal)
+    {
+        var propiedad = await _mySql.Propiedades
+            .Include(p => p.Casilla)
+            .FirstOrDefaultAsync(p => p.Id == propertyId);
+
+        if (propiedad == null)
+            return (0, "Property not found");
+
+        var tipoCasilla = propiedad.Casilla?.Tipo?.ToUpperInvariant();
+        if (tipoCasilla == null)
+            return (0, "Property has no board space");
+
+        if (tipoCasilla == "PROPIEDAD")
+        {
+            var ownership = await _mySql.PropiedadesPartida
+                .FirstOrDefaultAsync(pp => pp.PartidaId == gameId && pp.PropiedadId == propertyId && pp.PropietarioId == ownerUserId);
+
+            if (ownership == null)
+                return (0, "Property is not owned by the expected player");
+
+            var level = ownership.Nivel;
+            if (level <= 0)
+                return (propiedad.AlquilerBase, null);
+
+            if (level == 1)
+                return (propiedad.AlquilerNivel1 ?? propiedad.AlquilerBase, null);
+            if (level == 2)
+                return (propiedad.AlquilerNivel2 ?? propiedad.AlquilerBase, null);
+            if (level == 3)
+                return (propiedad.AlquilerNivel3 ?? propiedad.AlquilerBase, null);
+            if (level == 4)
+                return (propiedad.AlquilerNivel4 ?? propiedad.AlquilerBase, null);
+
+            return (propiedad.AlquilerHotel ?? propiedad.AlquilerBase, null);
+        }
+
+        if (tipoCasilla == "ESTACION")
+        {
+            var stationIds = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .Where(p => p.Casilla != null && p.Casilla.Tipo == "ESTACION")
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            var ownedStations = await _mySql.PropiedadesPartida
+                .CountAsync(pp => pp.PartidaId == gameId && pp.PropietarioId == ownerUserId && stationIds.Contains(pp.PropiedadId));
+
+            var rent = 25 * (int)Math.Pow(2, Math.Max(0, ownedStations - 1));
+            return (rent, null);
+        }
+
+        if (tipoCasilla == "COMPANIA" || tipoCasilla == "COMPAÑIA")
+        {
+            if (!diceTotal.HasValue || diceTotal.Value <= 0)
+                return (0, "Dice total required for utility rent calculation");
+
+            var utilityIds = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .Where(p => p.Casilla != null && (p.Casilla.Tipo == "COMPANIA" || p.Casilla.Tipo == "COMPAÑIA"))
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            var ownedUtilities = await _mySql.PropiedadesPartida
+                .CountAsync(pp => pp.PartidaId == gameId && pp.PropietarioId == ownerUserId && utilityIds.Contains(pp.PropiedadId));
+
+            var multiplier = ownedUtilities >= 2 ? 10 : 4;
+            return (diceTotal.Value * multiplier, null);
+        }
+
+        return (0, "Unsupported property type for rent calculation");
+    }
+
+    private async Task<PartidaUsuarioEntity> GetOrCreatePartidaUsuario(int gameId, int userId, int fallbackMoney)
+    {
+        var wallet = await _mySql.PartidasUsuarios
+            .FirstOrDefaultAsync(pu => pu.PartidaId == gameId && pu.UsuarioId == userId);
+
+        if (wallet != null)
+            return wallet;
+
+        wallet = new PartidaUsuarioEntity
+        {
+            PartidaId = gameId,
+            UsuarioId = userId,
+            DineroActual = fallbackMoney
+        };
+
+        _mySql.PartidasUsuarios.Add(wallet);
+        await _mySql.SaveChangesAsync();
+        return wallet;
     }
 }

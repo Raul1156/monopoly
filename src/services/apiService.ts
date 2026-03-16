@@ -85,6 +85,12 @@ export interface Property {
   type: string;
   price: number;
   rentBase: number;
+  rentLevel1?: number;
+  rentLevel2?: number;
+  rentLevel3?: number;
+  rentLevel4?: number;
+  rentHotel?: number;
+  upgradePrice?: number;
   color: string;
   position: number;
 }
@@ -273,8 +279,31 @@ class ApiService {
     });
   }
 
-  async payRent(fromPlayerId: number, toPlayerId: number, amount: number): Promise<{ message: string; fromPlayerMoney: number; toPlayerMoney: number }> {
-    return this.request(`/gameactions/pay-rent?fromPlayerId=${fromPlayerId}&toPlayerId=${toPlayerId}&amount=${amount}`, {
+  async buildUpgrade(gameId: number, playerId: number, propertyId: number): Promise<{ message: string; level: number; moneyLeft: number }> {
+    return this.request(`/gameactions/build-upgrade`, {
+      method: 'POST',
+      body: JSON.stringify({ gameId, playerId, propertyId }),
+    });
+  }
+
+  async payRent(
+    gameId: number,
+    fromPlayerId: number,
+    toPlayerId: number,
+    amount: number,
+    propertyId?: number,
+    diceTotal?: number
+  ): Promise<{ message: string; fromPlayerMoney: number; toPlayerMoney: number }> {
+    const params = new URLSearchParams({
+      fromPlayerId: String(fromPlayerId),
+      toPlayerId: String(toPlayerId),
+      amount: String(amount),
+      gameId: String(gameId),
+    });
+    if (propertyId !== undefined) params.set("propertyId", String(propertyId));
+    if (diceTotal !== undefined) params.set("diceTotal", String(diceTotal));
+
+    return this.request(`/gameactions/pay-rent?${params.toString()}`, {
       method: 'POST',
     });
   }

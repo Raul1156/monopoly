@@ -10,6 +10,8 @@ public class PropiedadEntity
     public int? AlquilerNivel1 { get; set; }
     public int? AlquilerNivel2 { get; set; }
     public int? AlquilerNivel3 { get; set; }
+    public int? AlquilerNivel4 { get; set; }
+    public int? AlquilerHotel { get; set; }
     public int? PrecioMejora { get; set; }
     public string? ColorGrupo { get; set; }
 

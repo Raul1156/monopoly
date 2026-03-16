@@ -94,6 +94,12 @@ public class MySqlBoardService : IBoardService
             Type = type,
             Price = propiedad.Precio,
             RentBase = propiedad.AlquilerBase,
+            RentLevel1 = propiedad.AlquilerNivel1,
+            RentLevel2 = propiedad.AlquilerNivel2,
+            RentLevel3 = propiedad.AlquilerNivel3,
+            RentLevel4 = propiedad.AlquilerNivel4,
+            RentHotel = propiedad.AlquilerHotel,
+            UpgradePrice = propiedad.PrecioMejora,
             Color = propiedad.ColorGrupo ?? string.Empty,
             Position = position
         };

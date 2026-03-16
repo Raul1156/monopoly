@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 
 export interface Property {
   id: number;
+  propertyDbId?: number;
   nombre: string;
   tipo: 'propiedad' | 'estacion' | 'compañia' | 'comunidad' | 'suerte' | 'hacienda' | 'loteria' | 'carcel' | 'irCarcel' | 'casino' | 'inicio' | 'impuesto';
   precio?: number;
@@ -10,6 +11,13 @@ export interface Property {
   dueno?: string;
   nivel?: number; // Para casas/hoteles
   alquiler?: number; // Alquiler que cobran
+  alquilerNivel1?: number;
+  alquilerNivel2?: number;
+  alquilerNivel3?: number;
+  alquilerNivel4?: number;
+  alquilerHotel?: number;
+  precioMejora?: number;
+  colorGrupo?: string;
 
   // Cartas (COMUNIDAD / SUERTE)
   cardLoading?: boolean;
@@ -29,6 +37,10 @@ interface PropertyCardModalProps {
   onClose: () => void;
   onBuy: (propertyId: number) => void;
   onPass: () => void;
+  onBuild?: (propertyId: number) => void;
+  canBuild?: boolean;
+  buildCost?: number;
+  buildDisabledReason?: string;
 }
 
 export function PropertyCardModal({
@@ -37,7 +49,11 @@ export function PropertyCardModal({
   playerMoney,
   onClose,
   onBuy,
-  onPass
+  onPass,
+  onBuild,
+  canBuild,
+  buildCost,
+  buildDisabledReason
 }: PropertyCardModalProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -59,6 +75,11 @@ export function PropertyCardModal({
     onBuy(property.id);
     setShowConfirm(false);
     setTimeout(() => onClose(), 300);
+  };
+
+  const handleBuild = () => {
+    if (!onBuild) return;
+    onBuild(property.id);
   };
 
   const handlePass = () => {
@@ -248,6 +269,20 @@ export function PropertyCardModal({
                     }`}
                   >
                     {canAfford ? '🛒 COMPRAR' : '❌ SIN DINERO'}
+                  </Button>
+                )}
+                {onBuild && isOwned && canBuild !== undefined && (
+                  <Button
+                    onClick={handleBuild}
+                    disabled={!canBuild}
+                    className={`w-full font-bold text-lg py-2 ${
+                      canBuild
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                    }`}
+                    title={canBuild ? undefined : buildDisabledReason}
+                  >
+                    {canBuild ? `🏗️ CONSTRUIR${buildCost ? ` (${buildCost} pts)` : ''}` : '🚫 NO SE PUEDE'}
                   </Button>
                 )}
                 <Button
