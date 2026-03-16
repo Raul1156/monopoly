@@ -25,6 +25,7 @@ interface PlayerPropertiesModalProps {
   isCurrentPlayer: boolean;
   onBuild: (propertyId: number) => void;
   getBuildState: (propertyId: number) => { canBuild: boolean; reason: string; cost: number };
+  onInfo: (propertyId: number) => void;
   onClose: () => void;
 }
 
@@ -37,6 +38,7 @@ export function PlayerPropertiesModal({
   isCurrentPlayer,
   onBuild,
   getBuildState,
+  onInfo,
   onClose
 }: PlayerPropertiesModalProps) {
   if (!isOpen) return null;
@@ -120,7 +122,8 @@ export function PlayerPropertiesModal({
                   return (
                     <div
                       key={idx}
-                      className="bg-gray-50 border-2 border-gray-300 rounded-lg p-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
+                      className="bg-gray-50 border-2 border-gray-300 rounded-lg p-3 flex items-center justify-between hover:bg-gray-100 transition-colors cursor-pointer"
+                      onClick={() => onInfo(prop.propertyId)}
                     >
                       <div className="flex items-center space-x-3 flex-1">
                         <Home className="w-5 h-5 text-gray-600" />

@@ -79,6 +79,12 @@ export interface MoveResult {
   message: string;
 }
 
+export interface PropertyUpgradeInfo {
+  propertyId: number;
+  ownerId: number;
+  level: number;
+}
+
 export interface Property {
   id: number;
   name: string;
@@ -306,6 +312,10 @@ class ApiService {
     return this.request(`/gameactions/pay-rent?${params.toString()}`, {
       method: 'POST',
     });
+  }
+
+  async getPropertyUpgrades(gameId: number): Promise<PropertyUpgradeInfo[]> {
+    return this.request<PropertyUpgradeInfo[]>(`/gameactions/property-upgrades?gameId=${gameId}`);
   }
 
   // Shop endpoints

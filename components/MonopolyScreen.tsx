@@ -12,6 +12,9 @@ import { CasinoRouletteModal } from "./CasinoRouletteModal";
 import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { PropertyInfoCard } from "./PropertyInfoCard";
+import { PropertyInfoModal } from "./PropertyInfoModal";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
@@ -79,6 +82,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [selectedPlayerForProperties, setSelectedPlayerForProperties] = useState<number | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState(1);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedInfoPropertyId, setSelectedInfoPropertyId] = useState<number | null>(null);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [hasRolledDice, setHasRolledDice] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +189,31 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       .catch((err) => {
         console.error("Error loading board spaces:", err);
         if (mounted) setError("No se pudo cargar el tablero desde la base de datos");
+      });
+
+    apiService.getPropertyUpgrades(gameId)
+      .then((upgrades) => {
+        if (!mounted) return;
+        setPlayersInGame((prev) =>
+          prev.map((player) => {
+            const owned = upgrades.filter((u) => u.ownerId === player.id);
+            if (owned.length === 0) return player;
+
+            const updatedProps = owned.map((u) => {
+              const position = propertyPositionByDbId.get(u.propertyId);
+              if (position === undefined) return null;
+              return { propertyId: position, propertyDbId: u.propertyId, level: u.level } as PlayerProperty;
+            }).filter((v): v is PlayerProperty => v !== null);
+
+            return {
+              ...player,
+              properties: updatedProps,
+            };
+          })
+        );
+      })
+      .catch((err) => {
+        console.warn("No se pudieron cargar las mejoras:", err);
       });
 
     return () => {
@@ -407,6 +436,12 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     if (level === 3) return property.alquilerNivel3 ?? property.alquiler ?? 0;
     if (level === 4) return property.alquilerNivel4 ?? property.alquiler ?? 0;
     return property.alquilerHotel ?? property.alquiler ?? 0;
+  };
+
+  const getOwnerInfoForPosition = (position: number) => {
+    const owner = playersInGame.find((p) => p.properties.some((prop) => prop.propertyId === position));
+    const level = owner ? getPropertyLevelForPlayer(owner, position) : 0;
+    return { ownerName: owner?.name, level };
   };
 
   // Tirar dado
@@ -1052,6 +1087,33 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             }}
           />
 
+          {/* Hotspots con tooltip de informacion */}
+          {boardProperties.map((property, idx) => {
+            if (!property) return null;
+            if (!"propiedad|estacion|compañia".includes(property.tipo)) return null;
+            const pos = boardPositions[idx] || boardPositions[0];
+            const { ownerName, level } = getOwnerInfoForPosition(idx);
+
+            return (
+              <Tooltip key={`tooltip-${idx}`}>
+                <TooltipTrigger asChild>
+                  <button
+                    className="absolute h-6 w-6 rounded-full bg-transparent"
+                    style={{
+                      ...pos,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    onClick={() => setSelectedInfoPropertyId(idx)}
+                    aria-label={`Ver info de ${property.nombre}`}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="bg-transparent shadow-none border-none p-0">
+                  <PropertyInfoCard property={property} level={level} ownerName={ownerName} />
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+
           {/* Distintivos de propiedades compradas */}
           {playersInGame.map((player) =>
             player.properties.map((prop) => {
@@ -1242,6 +1304,14 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         buildDisabledReason={buildEligibility.reason}
       />
 
+      <PropertyInfoModal
+        isOpen={selectedInfoPropertyId !== null}
+        property={selectedInfoPropertyId !== null ? boardProperties[selectedInfoPropertyId] : null}
+        level={selectedInfoPropertyId !== null ? getOwnerInfoForPosition(selectedInfoPropertyId).level : 0}
+        ownerName={selectedInfoPropertyId !== null ? getOwnerInfoForPosition(selectedInfoPropertyId).ownerName : undefined}
+        onClose={() => setSelectedInfoPropertyId(null)}
+      />
+
       <CasinoRouletteModal
         isOpen={showCasinoModal}
         playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
@@ -1285,6 +1355,10 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               ? getBuildStateForProperty(currentPlayerData, propertyId)
               : { canBuild: false, reason: "No es tu turno", cost: 0 }
           }
+          onInfo={(propertyId) => {
+            setSelectedPlayerForProperties(null);
+            setSelectedInfoPropertyId(propertyId);
+          }}
           onClose={() => setSelectedPlayerForProperties(null)}
         />
       )}

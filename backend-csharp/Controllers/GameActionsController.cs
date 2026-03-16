@@ -171,6 +171,13 @@ public class GameActionsController : ControllerBase
         public int PropertyId { get; set; }
     }
 
+    public class PropertyUpgradeInfoDto
+    {
+        public int PropertyId { get; set; }
+        public int OwnerId { get; set; }
+        public int Level { get; set; }
+    }
+
     [HttpPost("use-station")]
     public async Task<ActionResult<MoveResultDto>> UseStation([FromBody] UseStationDto dto)
     {
@@ -572,6 +579,23 @@ public class GameActionsController : ControllerBase
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    [HttpGet("property-upgrades")]
+    public async Task<ActionResult<List<PropertyUpgradeInfoDto>>> GetPropertyUpgrades([FromQuery] int gameId)
+    {
+        var upgrades = await _mySql.PropiedadesPartida
+            .AsNoTracking()
+            .Where(pp => pp.PartidaId == gameId)
+            .Select(pp => new PropertyUpgradeInfoDto
+            {
+                PropertyId = pp.PropiedadId,
+                OwnerId = pp.PropietarioId,
+                Level = pp.Nivel
+            })
+            .ToListAsync();
+
+        return Ok(upgrades);
     }
 
     private async Task<(int amount, string? error)> CalculateRentAsync(int gameId, int ownerUserId, int propertyId, int? diceTotal)
