@@ -85,6 +85,29 @@ export interface PropertyUpgradeInfo {
   level: number;
 }
 
+export interface TradeProperty {
+  propertyId: number;
+  releaseMortgageNow: boolean;
+}
+
+export interface TradeRequest {
+  gameId: number;
+  fromPlayerId: number;
+  toPlayerId: number;
+  cashFrom: number;
+  cashTo: number;
+  propertiesFrom: TradeProperty[];
+  propertiesTo: TradeProperty[];
+}
+
+export interface TradeResult {
+  message: string;
+  fromPlayerMoney: number;
+  toPlayerMoney: number;
+  transferredFromPropertyIds: number[];
+  transferredToPropertyIds: number[];
+}
+
 export interface Property {
   id: number;
   name: string;
@@ -316,6 +339,13 @@ class ApiService {
 
   async getPropertyUpgrades(gameId: number): Promise<PropertyUpgradeInfo[]> {
     return this.request<PropertyUpgradeInfo[]>(`/gameactions/property-upgrades?gameId=${gameId}`);
+  }
+
+  async trade(request: TradeRequest): Promise<TradeResult> {
+    return this.request<TradeResult>(`/gameactions/trade`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
   }
 
   // Shop endpoints

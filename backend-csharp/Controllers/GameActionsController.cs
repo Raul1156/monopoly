@@ -178,6 +178,158 @@ public class GameActionsController : ControllerBase
         public int Level { get; set; }
     }
 
+    [HttpPost("trade")]
+    public async Task<ActionResult<TradeResultDto>> Trade([FromBody] TradeActionDto dto)
+    {
+        try
+        {
+            if (dto.FromPlayerId == dto.ToPlayerId)
+                return BadRequest("Cannot trade with the same player");
+
+            if (dto.CashFrom < 0 || dto.CashTo < 0)
+                return BadRequest("Cash amounts cannot be negative");
+
+            var fromIds = dto.PropertiesFrom.Select(p => p.PropertyId).ToList();
+            var toIds = dto.PropertiesTo.Select(p => p.PropertyId).ToList();
+
+            var fromOffersSomething = dto.CashFrom > 0 || fromIds.Count > 0;
+            var toOffersSomething = dto.CashTo > 0 || toIds.Count > 0;
+
+            if (!fromOffersSomething || !toOffersSomething)
+                return BadRequest("Both players must offer at least money or one property");
+
+            var isCashOnlyTrade = fromIds.Count == 0 && toIds.Count == 0;
+            if (isCashOnlyTrade)
+                return BadRequest("Cash-only trades are not allowed. At least one side must include a property");
+
+            if (fromIds.Count != fromIds.Distinct().Count() || toIds.Count != toIds.Distinct().Count())
+                return BadRequest("Duplicated properties are not allowed in a trade");
+
+            if (fromIds.Intersect(toIds).Any())
+                return BadRequest("The same property cannot be included on both sides of the trade");
+
+            var fromPlayer = await _context.PlayersInGame
+                .Include(p => p.OwnedProperties)
+                    .ThenInclude(po => po.Property)
+                .FirstOrDefaultAsync(p => p.Id == dto.FromPlayerId && p.GameId == dto.GameId);
+
+            var toPlayer = await _context.PlayersInGame
+                .Include(p => p.OwnedProperties)
+                    .ThenInclude(po => po.Property)
+                .FirstOrDefaultAsync(p => p.Id == dto.ToPlayerId && p.GameId == dto.GameId);
+
+            if (fromPlayer == null || toPlayer == null)
+                return NotFound("Player not found");
+
+            if (fromPlayer.IsBankrupt || toPlayer.IsBankrupt)
+                return BadRequest("Bankrupt players cannot negotiate");
+
+            var fromValidation = await ValidateTradeProperties(dto.GameId, fromPlayer.UserId, fromIds);
+            if (fromValidation != null)
+                return BadRequest(fromValidation);
+
+            var toValidation = await ValidateTradeProperties(dto.GameId, toPlayer.UserId, toIds);
+            if (toValidation != null)
+                return BadRequest(toValidation);
+
+            var fromOwnerships = await _context.PropertyOwnerships
+                .Where(po => po.PlayerInGameId == fromPlayer.Id && fromIds.Contains(po.PropertyId))
+                .ToDictionaryAsync(po => po.PropertyId, po => po);
+
+            var toOwnerships = await _context.PropertyOwnerships
+                .Where(po => po.PlayerInGameId == toPlayer.Id && toIds.Contains(po.PropertyId))
+                .ToDictionaryAsync(po => po.PropertyId, po => po);
+
+            if (fromOwnerships.Count != fromIds.Count || toOwnerships.Count != toIds.Count)
+                return BadRequest("One or more properties are not owned by the expected player");
+
+            var allTradeIds = fromIds.Concat(toIds).Distinct().ToList();
+            var propertiesCatalog = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .Where(p => allTradeIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p);
+
+            if (propertiesCatalog.Count != allTradeIds.Count)
+                return BadRequest("One or more properties do not exist");
+
+            var partidaProps = await _mySql.PropiedadesPartida
+                .Where(pp => pp.PartidaId == dto.GameId && allTradeIds.Contains(pp.PropiedadId))
+                .ToDictionaryAsync(pp => pp.PropiedadId, pp => pp);
+
+            if (partidaProps.Count != allTradeIds.Count)
+                return BadRequest("One or more properties are not owned in this game");
+
+            if (fromIds.Any(pid => partidaProps[pid].PropietarioId != fromPlayer.UserId) ||
+                toIds.Any(pid => partidaProps[pid].PropietarioId != toPlayer.UserId))
+            {
+                return BadRequest("Trade ownership validation failed");
+            }
+
+            var fromWallet = await GetOrCreatePartidaUsuario(dto.GameId, fromPlayer.UserId, fromPlayer.Money);
+            var toWallet = await GetOrCreatePartidaUsuario(dto.GameId, toPlayer.UserId, toPlayer.Money);
+
+            var fromMortgageCost = CalculateMortgageCost(dto.PropertiesTo, toOwnerships, propertiesCatalog);
+            var toMortgageCost = CalculateMortgageCost(dto.PropertiesFrom, fromOwnerships, propertiesCatalog);
+
+            var fromRequired = dto.CashFrom + fromMortgageCost;
+            var toRequired = dto.CashTo + toMortgageCost;
+
+            if (fromWallet.DineroActual < fromRequired)
+                return BadRequest("From player does not have enough money for this trade");
+
+            if (toWallet.DineroActual < toRequired)
+                return BadRequest("To player does not have enough money for this trade");
+
+            fromWallet.DineroActual = fromWallet.DineroActual - dto.CashFrom + dto.CashTo - fromMortgageCost;
+            toWallet.DineroActual = toWallet.DineroActual - dto.CashTo + dto.CashFrom - toMortgageCost;
+
+            fromPlayer.Money = fromWallet.DineroActual;
+            toPlayer.Money = toWallet.DineroActual;
+
+            foreach (var tradeProperty in dto.PropertiesFrom)
+            {
+                var ownership = fromOwnerships[tradeProperty.PropertyId];
+                ownership.PlayerInGameId = toPlayer.Id;
+
+                if (ownership.IsMortgaged)
+                    ownership.IsMortgaged = !tradeProperty.ReleaseMortgageNow;
+
+                var partida = partidaProps[tradeProperty.PropertyId];
+                partida.PropietarioId = toPlayer.UserId;
+            }
+
+            foreach (var tradeProperty in dto.PropertiesTo)
+            {
+                var ownership = toOwnerships[tradeProperty.PropertyId];
+                ownership.PlayerInGameId = fromPlayer.Id;
+
+                if (ownership.IsMortgaged)
+                    ownership.IsMortgaged = !tradeProperty.ReleaseMortgageNow;
+
+                var partida = partidaProps[tradeProperty.PropertyId];
+                partida.PropietarioId = fromPlayer.UserId;
+            }
+
+            await _context.SaveChangesAsync();
+            await _mySql.SaveChangesAsync();
+
+            var result = new TradeResultDto
+            {
+                Message = "Trade executed successfully",
+                FromPlayerMoney = fromPlayer.Money,
+                ToPlayerMoney = toPlayer.Money,
+                TransferredFromPropertyIds = fromIds,
+                TransferredToPropertyIds = toIds
+            };
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     [HttpPost("use-station")]
     public async Task<ActionResult<MoveResultDto>> UseStation([FromBody] UseStationDto dto)
     {
@@ -596,6 +748,83 @@ public class GameActionsController : ControllerBase
             .ToListAsync();
 
         return Ok(upgrades);
+    }
+
+    private async Task<string?> ValidateTradeProperties(int gameId, int ownerUserId, List<int> propertyIds)
+    {
+        if (propertyIds.Count == 0)
+            return null;
+
+        var ownerships = await _mySql.PropiedadesPartida
+            .Where(pp => pp.PartidaId == gameId && propertyIds.Contains(pp.PropiedadId))
+            .ToListAsync();
+
+        if (ownerships.Count != propertyIds.Count)
+            return "One or more properties are not owned in this game";
+
+        if (ownerships.Any(pp => pp.PropietarioId != ownerUserId))
+            return "A player can only trade their own properties";
+
+        var props = await _mySql.Propiedades
+            .Include(p => p.Casilla)
+            .Where(p => propertyIds.Contains(p.Id))
+            .ToListAsync();
+
+        foreach (var prop in props)
+        {
+            var tipo = prop.Casilla?.Tipo?.ToUpperInvariant();
+            if (tipo != "PROPIEDAD")
+                continue;
+
+            if (string.IsNullOrWhiteSpace(prop.ColorGrupo))
+                continue;
+
+            var groupPropertyIds = await _mySql.Propiedades
+                .Include(p => p.Casilla)
+                .Where(p => p.ColorGrupo == prop.ColorGrupo && p.Casilla != null && p.Casilla.Tipo == "PROPIEDAD")
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            if (groupPropertyIds.Count == 0)
+                continue;
+
+            var hasBuildingsInGroup = await _mySql.PropiedadesPartida
+                .AnyAsync(pp => pp.PartidaId == gameId && groupPropertyIds.Contains(pp.PropiedadId) && pp.Nivel > 0);
+
+            if (hasBuildingsInGroup)
+                return "Cannot trade a street while there are houses or hotels in its color group";
+        }
+
+        return null;
+    }
+
+    private static int CalculateMortgageCost(
+        List<TradePropertyDto> tradeProperties,
+        Dictionary<int, Models.PropertyOwnership> ownershipByPropertyId,
+        Dictionary<int, PropiedadEntity> catalog)
+    {
+        var total = 0;
+
+        foreach (var tradeProperty in tradeProperties)
+        {
+            if (!ownershipByPropertyId.TryGetValue(tradeProperty.PropertyId, out var ownership))
+                continue;
+
+            if (!ownership.IsMortgaged)
+                continue;
+
+            if (!catalog.TryGetValue(tradeProperty.PropertyId, out var prop))
+                continue;
+
+            var mortgageValue = Math.Max(0, prop.Precio / 2);
+            var interest = (int)Math.Ceiling(mortgageValue * 0.10m);
+
+            total += tradeProperty.ReleaseMortgageNow
+                ? mortgageValue + interest
+                : interest;
+        }
+
+        return total;
     }
 
     private async Task<(int amount, string? error)> CalculateRentAsync(int gameId, int ownerUserId, int propertyId, int? diceTotal)

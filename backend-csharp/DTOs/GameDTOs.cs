@@ -64,9 +64,36 @@ public class PlayerInGameDto
     public int Money { get; set; }
     public int Position { get; set; }
     public bool IsInJail { get; set; }
+    public int GetOutOfJailCards { get; set; }
     public bool IsBankrupt { get; set; }
     public string Token { get; set; } = string.Empty;
     public List<PropertyOwnershipDto> OwnedProperties { get; set; } = new();
+}
+
+public class TradeActionDto
+{
+    public int GameId { get; set; }
+    public int FromPlayerId { get; set; }
+    public int ToPlayerId { get; set; }
+    public int CashFrom { get; set; } = 0;
+    public int CashTo { get; set; } = 0;
+    public List<TradePropertyDto> PropertiesFrom { get; set; } = new();
+    public List<TradePropertyDto> PropertiesTo { get; set; } = new();
+}
+
+public class TradePropertyDto
+{
+    public int PropertyId { get; set; }
+    public bool ReleaseMortgageNow { get; set; } = false;
+}
+
+public class TradeResultDto
+{
+    public string Message { get; set; } = string.Empty;
+    public int FromPlayerMoney { get; set; }
+    public int ToPlayerMoney { get; set; }
+    public List<int> TransferredFromPropertyIds { get; set; } = new();
+    public List<int> TransferredToPropertyIds { get; set; } = new();
 }
 
 public class PropertyOwnershipDto

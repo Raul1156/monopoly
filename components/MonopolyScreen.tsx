@@ -11,6 +11,7 @@ import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/ap
 import { CasinoRouletteModal } from "./CasinoRouletteModal";
 import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
+import { TradeModal } from "./TradeModal";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { PropertyInfoCard } from "./PropertyInfoCard";
@@ -24,6 +25,18 @@ interface PlayerProperty {
   propertyId: number;
   propertyDbId?: number;
   level?: number;
+}
+
+interface LocalPlayer {
+  id: number;
+  name: string;
+  color: string;
+  money: number;
+  position: number;
+  properties: PlayerProperty[];
+  isInJail: boolean;
+  jailTurns: number;
+  getOutOfJailCards: number;
 }
 
 interface CasillaUpgradeMarkerProps {
@@ -94,6 +107,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [showTramModal, setShowTramModal] = useState(false);
   const [tramStationName, setTramStationName] = useState<string>("Estacion");
   const [tramNextPosition, setTramNextPosition] = useState<number | null>(null);
+  const [showTradeModal, setShowTradeModal] = useState(false);
   /*tram*/
 
   // Dev mode: elegir número del dado para pruebas
@@ -275,11 +289,11 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   }, [gameId, propertyPositionByDbId]);
 
   // Jugadores: todos empiezan en la casilla 0
-  const [playersInGame, setPlayersInGame] = useState([
-    { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
-    { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
-    { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
-    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0 },
+  const [playersInGame, setPlayersInGame] = useState<LocalPlayer[]>([
+    { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
+    { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
+    { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
+    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
   ]);
 
   // Coordenadas del tablero
@@ -909,6 +923,155 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     toast.info("Decidiste no comprar esta propiedad");
   };
 
+  const handleTrade = async (payload: {
+    toPlayerId: number;
+    cashFrom: number;
+    cashTo: number;
+    propertiesFrom: { propertyId: number; releaseMortgageNow: boolean }[];
+    propertiesTo: { propertyId: number; releaseMortgageNow: boolean }[];
+  }) => {
+    const fromPlayer = playersInGame.find((p) => p.id === currentPlayer);
+    const toPlayer = playersInGame.find((p) => p.id === payload.toPlayerId);
+
+    if (!fromPlayer || !toPlayer) {
+      toast.error("Jugadores no válidos para el trato");
+      return;
+    }
+
+    if (payload.cashFrom < 0 || payload.cashTo < 0) {
+      toast.error("El efectivo no puede ser negativo");
+      return;
+    }
+
+    if (fromPlayer.money < payload.cashFrom || toPlayer.money < payload.cashTo) {
+      toast.error("Uno de los jugadores no tiene efectivo suficiente");
+      return;
+    }
+
+    const fromPropertyIds = payload.propertiesFrom.map((p) => p.propertyId);
+    const toPropertyIds = payload.propertiesTo.map((p) => p.propertyId);
+
+    const fromOffersSomething = payload.cashFrom > 0 || fromPropertyIds.length > 0;
+    const toOffersSomething = payload.cashTo > 0 || toPropertyIds.length > 0;
+
+    if (!fromOffersSomething || !toOffersSomething) {
+      toast.error("Ambos jugadores deben ofrecer dinero o propiedades");
+      return;
+    }
+
+    if (fromPropertyIds.length === 0 && toPropertyIds.length === 0) {
+      toast.error("No se permite negociar solo efectivo contra efectivo");
+      return;
+    }
+
+    const fromOwnsAll = fromPropertyIds.every((propertyId) => fromPlayer.properties.some((p) => p.propertyId === propertyId));
+    const toOwnsAll = toPropertyIds.every((propertyId) => toPlayer.properties.some((p) => p.propertyId === propertyId));
+
+    if (!fromOwnsAll || !toOwnsAll) {
+      toast.error("Propiedades inválidas en el trato");
+      return;
+    }
+
+    const hasBuildingsInColorGroup = (player: LocalPlayer, propertyId: number) => {
+      const property = boardProperties[propertyId];
+      if (!property || property.tipo !== "propiedad" || !property.colorGrupo) return false;
+
+      const sameGroupPositions = boardProperties
+        .map((p, idx) => (p?.tipo === "propiedad" && p.colorGrupo === property.colorGrupo ? idx : null))
+        .filter((v): v is number => v !== null);
+
+      return sameGroupPositions.some((pos) => {
+        const owned = player.properties.find((pp) => pp.propertyId === pos);
+        return (owned?.level ?? 0) > 0;
+      });
+    };
+
+    if (fromPropertyIds.some((id) => hasBuildingsInColorGroup(fromPlayer, id)) || toPropertyIds.some((id) => hasBuildingsInColorGroup(toPlayer, id))) {
+      toast.error("No se puede negociar una calle si su grupo de color tiene edificios");
+      return;
+    }
+
+    setPlayersInGame((prev) => {
+      const from = prev.find((p) => p.id === currentPlayer);
+      const to = prev.find((p) => p.id === payload.toPlayerId);
+      if (!from || !to) return prev;
+
+      const fromTransfer = from.properties.filter((pp) => fromPropertyIds.includes(pp.propertyId));
+      const toTransfer = to.properties.filter((pp) => toPropertyIds.includes(pp.propertyId));
+      const tradedIds = new Set<number>([...fromPropertyIds, ...toPropertyIds]);
+
+      return prev.map((player) => {
+        if (player.id === from.id) {
+          const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
+          const incoming = toTransfer.map((pp) => ({ ...pp, level: 0 }));
+          return {
+            ...player,
+            money: player.money - payload.cashFrom + payload.cashTo,
+            properties: [...remaining, ...incoming],
+          };
+        }
+
+        if (player.id === to.id) {
+          const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
+          const incoming = fromTransfer.map((pp) => ({ ...pp, level: 0 }));
+          return {
+            ...player,
+            money: player.money - payload.cashTo + payload.cashFrom,
+            properties: [...remaining, ...incoming],
+          };
+        }
+
+        return {
+          ...player,
+          properties: player.properties.filter((pp) => !tradedIds.has(pp.propertyId)),
+        };
+      });
+    });
+
+    setBoardProperties((prev) => {
+      const next = [...prev];
+      fromPropertyIds.forEach((id) => {
+        if (!next[id]) return;
+        next[id] = { ...next[id], dueno: toPlayer.name, nivel: 0 };
+      });
+      toPropertyIds.forEach((id) => {
+        if (!next[id]) return;
+        next[id] = { ...next[id], dueno: fromPlayer.name, nivel: 0 };
+      });
+      return next;
+    });
+
+    toast.success("✅ Trato realizado");
+
+    const mapToTradeDto = (propertyId: number) => {
+      const dbId = boardProperties[propertyId]?.propertyDbId;
+      return dbId ? { propertyId: dbId, releaseMortgageNow: false } : null;
+    };
+
+    const propertiesFromDb = fromPropertyIds.map(mapToTradeDto).filter((v): v is { propertyId: number; releaseMortgageNow: boolean } => v !== null);
+    const propertiesToDb = toPropertyIds.map(mapToTradeDto).filter((v): v is { propertyId: number; releaseMortgageNow: boolean } => v !== null);
+
+    if (propertiesFromDb.length !== fromPropertyIds.length || propertiesToDb.length !== toPropertyIds.length) {
+      toast.warning("Trato aplicado localmente. Algunas propiedades no se pudieron persistir en backend");
+      return;
+    }
+
+    try {
+      await apiService.trade({
+        gameId,
+        fromPlayerId: currentPlayer,
+        toPlayerId: payload.toPlayerId,
+        cashFrom: payload.cashFrom,
+        cashTo: payload.cashTo,
+        propertiesFrom: propertiesFromDb,
+        propertiesTo: propertiesToDb,
+      });
+    } catch (tradeError) {
+      console.warn("No se pudo persistir el trato en backend:", tradeError);
+      toast.warning("Trato local aplicado. El backend no confirmó la operación");
+    }
+  };
+
   const endTurn = () => {
     setTimeout(() => {
       setCurrentPlayer((prev) => {
@@ -1039,6 +1202,25 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     ? getBuildEligibility(currentPlayerData, selectedProperty)
     : { canBuild: false, reason: "" };
 
+  const uniqueOwnershipMarkers = useMemo(() => {
+    const ownerByProperty = new Map<number, { playerId: number; color: string; name: string }>();
+
+    for (const player of playersInGame) {
+      for (const prop of player.properties) {
+        ownerByProperty.set(prop.propertyId, {
+          playerId: player.id,
+          color: player.color,
+          name: player.name,
+        });
+      }
+    }
+
+    return Array.from(ownerByProperty.entries()).map(([propertyId, owner]) => ({
+      propertyId,
+      ...owner,
+    }));
+  }, [playersInGame]);
+
   // Manejo de errores
   if (error) {
     return (
@@ -1115,30 +1297,27 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           })}
 
           {/* Distintivos de propiedades compradas */}
-          {playersInGame.map((player) =>
-            player.properties.map((prop) => {
-              const pos = boardPositions[prop.propertyId] || boardPositions[0];
-              const offset = player.properties.indexOf(prop);
-              const offsetX = (offset % 2) * 15 - 7;
-              const offsetY = Math.floor(offset / 2) * 15 - 7;
+          {uniqueOwnershipMarkers.map((marker, index) => {
+            const pos = boardPositions[marker.propertyId] || boardPositions[0];
+            const offsetX = (index % 2) * 15 - 7;
+            const offsetY = Math.floor(index / 2) % 2 === 0 ? -7 : 7;
 
-              return (
+            return (
+              <div
+                key={`owned-${marker.playerId}-${marker.propertyId}`}
+                className="absolute"
+                style={{
+                  ...pos,
+                  transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                }}
+              >
                 <div
-                  key={`owned-${player.id}-${prop.propertyId}`}
-                  className="absolute"
-                  style={{
-                    ...pos,
-                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
-                  }}
-                >
-                  <div
-                    className={`w-3 h-3 rounded-full border-2 border-white shadow-lg ${player.color}`}
-                    title={`${boardProperties[prop.propertyId]?.nombre} (${player.name})`}
-                  />
-                </div>
-              );
-            })
-          )}
+                  className={`w-3 h-3 rounded-full border-2 border-white shadow-lg ${marker.color}`}
+                  title={`${boardProperties[marker.propertyId]?.nombre} (${marker.name})`}
+                />
+              </div>
+            );
+          })}
 
           {/* Casas y hoteles */}
           {playersInGame.map((player) =>
@@ -1280,6 +1459,14 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             <Button
               variant="outline"
               size="sm"
+              className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+              onClick={() => setShowTradeModal(true)}
+            >
+              Negociar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="border-amber-600/30 text-amber-400 hover:bg-amber-600/10"
               onClick={() => onNavigate?.("menu")}
             >
@@ -1362,6 +1549,15 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           onClose={() => setSelectedPlayerForProperties(null)}
         />
       )}
+
+      <TradeModal
+        isOpen={showTradeModal}
+        fromPlayer={playersInGame.find((p) => p.id === currentPlayer) ?? playersInGame[0]}
+        players={playersInGame.filter((p) => p.id !== currentPlayer && p.money > 0)}
+        boardProperties={boardProperties}
+        onClose={() => setShowTradeModal(false)}
+        onSubmit={handleTrade}
+      />
     </div>
   );
 }

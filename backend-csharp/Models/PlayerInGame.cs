@@ -11,6 +11,7 @@ public class PlayerInGame
     public int Position { get; set; } = 0;
     public bool IsInJail { get; set; } = false;
     public int JailTurns { get; set; } = 0;
+    public int GetOutOfJailCards { get; set; } = 0;
     public bool IsBankrupt { get; set; } = false;
     public int TurnOrder { get; set; }
     public string Token { get; set; } = string.Empty;
