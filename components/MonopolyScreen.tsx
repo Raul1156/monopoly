@@ -236,7 +236,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+    const apiBase = import.meta.env.VITE_API_URL || "http://32.194.172.210:5000/api";
     const hubUrl = apiBase.replace(/\/?api\/?$/, "") + "/hubs/game";
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl)
@@ -510,7 +510,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           const timeoutMs = 800;
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-          const res = await fetch("http://localhost:5000/api/gameactions/roll-dice", {
+          const res = await fetch("http://32.194.172.210:5000/api/gameactions/roll-dice", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,
