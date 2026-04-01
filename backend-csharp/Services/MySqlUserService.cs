@@ -118,12 +118,14 @@ public class MySqlUserService : IUserService
 
     public async Task<List<UserDto>> GetTopPlayers(int count = 10)
     {
-        var users = await _mySql.Usuarios
+        var query = _mySql.Usuarios
             .AsNoTracking()
             .Where(u => u.Activo)
-            .OrderByDescending(u => u.Elo)
-            .Take(count)
-            .ToListAsync();
+            .OrderByDescending(u => u.Elo);
+
+        var users = count > 0 
+            ? await query.Take(count).ToListAsync() 
+            : await query.ToListAsync();
 
         return users.Select(MapToDto).ToList();
     }
