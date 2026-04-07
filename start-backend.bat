@@ -8,14 +8,14 @@ cd backend-csharp
 
 REM Ensure consistent local dev behavior
 set ASPNETCORE_ENVIRONMENT=Development
-set ASPNETCORE_URLS=http://localhost:5000
+set ASPNETCORE_URLS=http://32.194.172.210:5000
 
 echo Restaurando dependencias...
 dotnet restore
 
 echo.
-echo Iniciando servidor en http://localhost:5000
-echo Swagger UI: http://localhost:5000/swagger
+echo Iniciando servidor en http://32.194.172.210:5000
+echo Swagger UI: http://32.194.172.210:5000/swagger
 echo.
 echo Presiona Ctrl+C para detener el servidor
 echo.
