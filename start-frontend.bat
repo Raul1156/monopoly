@@ -8,7 +8,7 @@ echo Instalando dependencias...
 call npm install
 
 echo.
-echo Iniciando servidor en http://32.194.172.210:5173
+echo Iniciando servidor en http://localhost:5173
 echo.
 echo Presiona Ctrl+C para detener el servidor
 echo.
