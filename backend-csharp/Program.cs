@@ -16,7 +16,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://32.194.172.210:5173")
+            policy.WithOrigins(
+                "http://localhost:5173",            // Tu PC (Frontend Local)
+                "http://32.194.172.210:5173",       // Amazon (Frontend Producción)
+                "http://32.194.172.210"             // Amazon (Por si acaso sin puerto)
+            )
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
