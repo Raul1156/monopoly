@@ -64,8 +64,10 @@ public class PlayerInGameDto
     public int Money { get; set; }
     public int Position { get; set; }
     public bool IsInJail { get; set; }
+    public int JailTurns { get; set; }
     public int GetOutOfJailCards { get; set; }
     public bool IsBankrupt { get; set; }
+    public int TurnOrder { get; set; }
     public string Token { get; set; } = string.Empty;
     public List<PropertyOwnershipDto> OwnedProperties { get; set; } = new();
 }

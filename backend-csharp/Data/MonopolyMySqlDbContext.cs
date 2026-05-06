@@ -15,6 +15,7 @@ public class MonopolyMySqlDbContext : DbContext
     public DbSet<PropiedadEntity> Propiedades => Set<PropiedadEntity>();
     public DbSet<PropiedadPartidaEntity> PropiedadesPartida => Set<PropiedadPartidaEntity>();
     public DbSet<PartidaUsuarioEntity> PartidasUsuarios => Set<PartidaUsuarioEntity>();
+    public DbSet<PartidaEntity> Partidas => Set<PartidaEntity>();
     public DbSet<CartaEntity> Cartas => Set<CartaEntity>();
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
     public DbSet<InventarioEntity> Inventario => Set<InventarioEntity>();
@@ -92,14 +93,46 @@ public class MonopolyMySqlDbContext : DbContext
             entity.HasIndex(e => new { e.PartidaId, e.PropiedadId });
         });
 
+        modelBuilder.Entity<PartidaEntity>(entity =>
+        {
+            entity.ToTable("partidas");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CodigoPartida).HasColumnName("codigo_partida").HasMaxLength(20);
+            entity.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(20);
+            entity.Property(e => e.TurnoActual).HasColumnName("turno_actual");
+            entity.Property(e => e.JugadorTurnoId).HasColumnName("jugador_turno_id");
+            entity.Property(e => e.RondaActual).HasColumnName("ronda_actual");
+            entity.Property(e => e.MaxJugadores).HasColumnName("max_jugadores");
+            entity.Property(e => e.FechaInicio).HasColumnName("fecha_inicio");
+            entity.Property(e => e.FechaFin).HasColumnName("fecha_fin");
+            entity.Property(e => e.GanadorId).HasColumnName("ganador_id");
+
+            entity.HasIndex(e => e.CodigoPartida).IsUnique();
+            entity.HasIndex(e => e.Estado);
+
+            entity.HasMany(e => e.Jugadores)
+                .WithOne(j => j.Partida)
+                .HasForeignKey(j => j.PartidaId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PartidaUsuarioEntity>(entity =>
         {
             entity.ToTable("partida_usuarios");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.PartidaId).HasColumnName("partida_id").IsRequired();
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
+            entity.Property(e => e.OrdenJuego).HasColumnName("orden_juego");
+            entity.Property(e => e.PosicionActual).HasColumnName("posicion_actual");
             entity.Property(e => e.DineroActual).HasColumnName("dinero_actual").IsRequired();
-            entity.HasIndex(e => new { e.PartidaId, e.UsuarioId });
+            entity.Property(e => e.TurnosCarcel).HasColumnName("turnos_carcel");
+            entity.Property(e => e.Activo).HasColumnName("activo");
+            entity.HasIndex(e => new { e.PartidaId, e.UsuarioId }).IsUnique();
+
+            entity.HasOne(e => e.Usuario)
+                .WithMany()
+                .HasForeignKey(e => e.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CartaEntity>(entity =>

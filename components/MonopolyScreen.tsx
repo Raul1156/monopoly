@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { MapPin, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Home } from "lucide-react";
@@ -12,13 +12,17 @@ import { CasinoRouletteModal } from "./CasinoRouletteModal";
 import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
 import { TradeModal } from "./TradeModal";
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
+import { HubConnectionBuilder, LogLevel, type HubConnection } from "@microsoft/signalr";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { PropertyInfoCard } from "./PropertyInfoCard";
 import { PropertyInfoModal } from "./PropertyInfoModal";
 
+import type { User } from "../src/services/apiService";
+
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
+  currentUser: User;
+  gameId: number;
 }
 
 interface PlayerProperty {
@@ -90,10 +94,15 @@ function CasillaUpgradeMarker({ position, level, title }: CasillaUpgradeMarkerPr
   );
 }
 
-export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
+export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScreenProps) {
+  const [isLoadingGame, setIsLoadingGame] = useState(true);
   const [dice1, setDice1] = useState<number | null>(null);
   const [selectedPlayerForProperties, setSelectedPlayerForProperties] = useState<number | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState(1);
+  const connectionRef = useRef<HubConnection | null>(null);
+
+  // Turn enforcement: only allow actions when it's your turn
+  const isMyTurn = currentUser.id === currentPlayer;
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedInfoPropertyId, setSelectedInfoPropertyId] = useState<number | null>(null);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
@@ -115,7 +124,6 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   const [debugDiceValue, setDebugDiceValue] = useState<number>(1);
 
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
-  const gameId = 1;
 
   const propertyPositionByDbId = useMemo(() => {
     const map = new Map<number, number>();
@@ -236,7 +244,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
   }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://32.194.172.210:5000/api";
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
     const hubUrl = apiBase.replace(/\/?api\/?$/, "") + "/hubs/game";
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl)
@@ -244,16 +252,99 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       .configureLogging(LogLevel.Warning)
       .build();
 
+    connectionRef.current = connection;
     let active = true;
 
     const start = async () => {
       try {
         await connection.start();
         await connection.invoke("JoinGame", gameId);
+        console.log("[SignalR] Connected to game", gameId);
       } catch (err) {
         console.warn("SignalR connection failed:", err);
       }
     };
+
+    // --- Listen for remote events ---
+
+    connection.on("DiceRolled", (payload: { userId: number; diceValue: number; newPosition: number; passedGo: boolean; moneyAfter: number }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote DiceRolled:", payload);
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId
+            ? { ...player, position: payload.newPosition, money: payload.moneyAfter }
+            : player
+        )
+      );
+    });
+
+    connection.on("TurnChanged", (payload: { nextPlayerId: number }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote TurnChanged:", payload);
+      setCurrentPlayer(payload.nextPlayerId);
+      setDice1(null);
+      setHasRolledDice(false);
+    });
+
+    connection.on("PropertyBought", (payload: { userId: number; propertyPosition: number; moneyLeft: number; propertyDbId: number }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote PropertyBought:", payload);
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          if (player.id !== payload.userId) return player;
+          const alreadyOwns = player.properties.some((p) => p.propertyId === payload.propertyPosition);
+          return {
+            ...player,
+            money: payload.moneyLeft,
+            properties: alreadyOwns
+              ? player.properties
+              : [...player.properties, { propertyId: payload.propertyPosition, propertyDbId: payload.propertyDbId, level: 0 }],
+          };
+        })
+      );
+      setBoardProperties((prev) => {
+        const next = [...prev];
+        const prop = next[payload.propertyPosition];
+        if (prop) {
+          const ownerName = "Otro jugador";
+          next[payload.propertyPosition] = { ...prop, dueno: ownerName };
+        }
+        return next;
+      });
+    });
+
+    connection.on("PlayerJailed", (payload: { userId: number; jailTurns: number }) => {
+      if (!active) return;
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId
+            ? { ...player, position: 10, isInJail: true, jailTurns: payload.jailTurns }
+            : player
+        )
+      );
+    });
+
+    connection.on("TaxPaid", (payload: { userId: number; moneyAfter: number }) => {
+      if (!active) return;
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId
+            ? { ...player, money: payload.moneyAfter }
+            : player
+        )
+      );
+    });
+
+    connection.on("CardEffectApplied", (playerMoneyUpdates: { userId: number; money: number }[]) => {
+      if (!active) return;
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          const update = playerMoneyUpdates.find((u) => u.userId === player.id);
+          return update ? { ...player, money: update.money } : player;
+        })
+      );
+    });
 
     connection.on("PropertyUpgradeChanged", (payload: { propertyId: number; level: number; ownerId: number; money?: number }) => {
       if (!active) return;
@@ -284,17 +375,56 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
     return () => {
       active = false;
+      connectionRef.current = null;
       connection.stop();
     };
   }, [gameId, propertyPositionByDbId]);
 
-  // Jugadores: todos empiezan en la casilla 0
-  const [playersInGame, setPlayersInGame] = useState<LocalPlayer[]>([
-    { id: 1, name: "Raúl", color: "bg-red-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
-    { id: 2, name: "Dayron", color: "bg-blue-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
-    { id: 3, name: "Anna", color: "bg-green-500", money: 1500, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
-    { id: 4, name: "Marcelo", color: "bg-yellow-500", money: 10, position: 0, properties: [] as PlayerProperty[], isInJail: false, jailTurns: 0, getOutOfJailCards: 0 },
-  ]);
+  const [playersInGame, setPlayersInGame] = useState<LocalPlayer[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadGame = async () => {
+      try {
+        const game = await apiService.getGame(gameId);
+        if (!isMounted) return;
+
+        const mappedPlayers: LocalPlayer[] = game.players.map(p => ({
+          id: p.userId,
+          name: p.username || `Jugador ${p.userId}`,
+          money: p.money,
+          position: p.position,
+          color: p.token || "bg-gray-500",
+          properties: [], // Las propiedades se llenan luego con getPropertyUpgrades
+          isInJail: p.isInJail,
+          jailTurns: p.jailTurns ?? 0,
+          getOutOfJailCards: p.getOutOfJailCards ?? 0
+        }));
+
+        setPlayersInGame(mappedPlayers);
+        
+        const activePlayer = game.players.find(p => p.turnOrder === game.currentTurn);
+        if (activePlayer) {
+          setCurrentPlayer(activePlayer.userId);
+        } else if (mappedPlayers.length > 0) {
+          setCurrentPlayer(mappedPlayers[0].id);
+        }
+
+        setIsLoadingGame(false);
+      } catch (err) {
+        console.error("Error al cargar la partida:", err);
+        setError("Error al cargar la partida desde el servidor.");
+        setIsLoadingGame(false);
+      }
+    };
+
+    loadGame();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [gameId]);
 
   // Coordenadas del tablero
   const boardPositions = [
@@ -460,12 +590,16 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
   // Tirar dado
   const rollDice = async () => {
+    if (!isMyTurn) {
+      toast.warning("No es tu turno");
+      return;
+    }
     if (hasRolledDice) {
       toast.warning("Ya lanzaste los dados en este turno");
       return;
     }
 
-    const currentPlayerData = playersInGame[currentPlayer - 1];
+    const currentPlayerData = playersInGame.find(p => p.id === currentPlayer);
     if (!currentPlayerData) return;
 
     // prision
@@ -510,7 +644,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           const timeoutMs = 800;
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-          const res = await fetch("http://32.194.172.210:5000/api/gameactions/roll-dice", {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/gameactions/roll-dice`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,
@@ -538,7 +672,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
       setHasRolledDice(true);
       toast.success(`🎲 Sacaste ${singleDie}`);
 
-      const currentPlayerData = playersInGame[currentPlayer - 1];
+      const currentPlayerData = playersInGame.find(p => p.id === currentPlayer);
       if (!currentPlayerData) {
         console.error("No se encontró el jugador actual");
         return;
@@ -567,6 +701,12 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
         )
       );
 
+      // Broadcast dice roll to other players
+      const moneyAfterMove = (playersInGame.find(p => p.id === currentPlayer)?.money ?? 0) + (passedGo ? 200 : 0);
+      try {
+        await connectionRef.current?.invoke("BroadcastDiceRoll", gameId, currentPlayer, singleDie, newPosition, passedGo, moneyAfterMove);
+      } catch (e) { console.warn("Failed to broadcast dice roll:", e); }
+
       if (sentToJail) {
         toast.error("👮 ¡Has caído en la casilla de ir a la cárcel!");
 
@@ -584,6 +724,8 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             )
           );
           toast.error("🔒 Te vas a la cárcel. 3 turnos sin jugar.");
+          // Broadcast jail to other players
+          connectionRef.current?.invoke("BroadcastPlayerJailed", gameId, currentPlayer, 3).catch(() => {});
           endTurn();
         }, 1500);
 
@@ -603,6 +745,9 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           )
         );
         toast.info("💸 Impuestos: Has pagado 200");
+        // Broadcast tax to other players
+        const moneyAfterTax = Math.max(0, (playersInGame.find(p => p.id === currentPlayer)?.money ?? 0) - 200);
+        connectionRef.current?.invoke("BroadcastTaxPaid", gameId, currentPlayer, moneyAfterTax).catch(() => {});
       }
 
       // Check Casino (roulette at 20, blackjack at 38)
@@ -812,7 +957,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
   // Manejar compra de propiedad
   const handleBuyProperty = (propertyId: number) => {
-    const currentPlayerData = playersInGame[currentPlayer - 1];
+    const currentPlayerData = playersInGame.find(p => p.id === currentPlayer);
     const property = boardProperties[propertyId];
 
     const propertyDbId = property?.propertyDbId;
@@ -857,10 +1002,14 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           console.warn("No se pudo persistir la compra:", err);
         });
     }
+
+    // Broadcast property purchase to other players
+    const moneyLeft = Math.max(0, currentPlayerData.money - (property.precio || 0));
+    connectionRef.current?.invoke("BroadcastPropertyBought", gameId, currentPlayer, propertyId, moneyLeft, propertyDbId || 0).catch(() => {});
   };
 
   const handleBuildUpgrade = (propertyId: number) => {
-    const currentPlayerData = playersInGame[currentPlayer - 1];
+    const currentPlayerData = playersInGame.find(p => p.id === currentPlayer);
     const property = boardProperties[propertyId];
 
     if (!property || property.tipo !== "propiedad") {
@@ -1074,33 +1223,34 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
   const endTurn = () => {
     setTimeout(() => {
-      setCurrentPlayer((prev) => {
-        const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
+      const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
 
-        if (activePlayers.length === 0) {
-          toast.error("No hay jugadores activos en la partida");
-          return prev;
-        }
+      if (activePlayers.length === 0) {
+        toast.error("No hay jugadores activos en la partida");
+        return;
+      }
 
-        if (activePlayers.length === 1) {
-          toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
-          return activePlayers[0];
-        }
+      if (activePlayers.length === 1) {
+        toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
+        setCurrentPlayer(activePlayers[0]);
+        return;
+      }
 
-        const currentIndex = activePlayers.indexOf(prev);
+      const currentIndex = activePlayers.indexOf(currentPlayer);
+      let nextPlayer: number;
 
-        if (currentIndex === -1) {
-          return activePlayers[0];
-        }
+      if (currentIndex === -1 || currentIndex === activePlayers.length - 1) {
+        nextPlayer = activePlayers[0];
+      } else {
+        nextPlayer = activePlayers[currentIndex + 1];
+      }
 
-        if (currentIndex === activePlayers.length - 1) {
-          return activePlayers[0];
-        }
-
-        return activePlayers[currentIndex + 1];
-      });
+      setCurrentPlayer(nextPlayer);
       setDice1(null);
       setHasRolledDice(false);
+
+      // Broadcast turn change to other players
+      connectionRef.current?.invoke("BroadcastEndTurn", gameId, nextPlayer).catch(() => {});
     }, 150);
   };
 
@@ -1197,7 +1347,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
     return <DiceIcon className="w-8 h-8 text-amber-400" />;
   };
 
-  const currentPlayerData = playersInGame[currentPlayer - 1];
+  const currentPlayerData = playersInGame.find(p => p.id === currentPlayer);
   const buildEligibility = selectedProperty && currentPlayerData
     ? getBuildEligibility(currentPlayerData, selectedProperty)
     : { canBuild: false, reason: "" };
@@ -1245,12 +1395,17 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
             <MapPin className="w-6 h-6 text-amber-400" />
             <div>
               <h2 className="text-white font-bold">Monopoly Casino y Tapas</h2>
-              <p className="text-amber-400 text-sm">
-                Turno de {playersInGame.find((p) => p.id === currentPlayer && p.money > 0)?.name || "Jugador eliminado"}
+              <p className={`text-sm font-medium ${isMyTurn ? 'text-green-400' : 'text-amber-400'}`}>
+                {isMyTurn 
+                  ? '🎯 ¡Tu turno!' 
+                  : `⏳ Turno de ${playersInGame.find((p) => p.id === currentPlayer && p.money > 0)?.name || 'Jugador eliminado'}`
+                }
               </p>
             </div>
           </div>
-          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">Ronda 1</Badge>
+          <Badge className={`${isMyTurn ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
+            {isMyTurn ? 'Tu turno' : 'Esperando'}
+          </Badge>
         </div>
       </div>
 
@@ -1420,13 +1575,13 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
           <div className="flex items-center space-x-3">
             <Button
               onClick={rollDice}
-              disabled={hasRolledDice}
+              disabled={hasRolledDice || !isMyTurn}
               className={`bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white ${
-                hasRolledDice ? "opacity-50 cursor-not-allowed" : ""
+                (hasRolledDice || !isMyTurn) ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
               <Dice1 className="w-4 h-4 mr-2" />
-              Lanzar Dados
+              {!isMyTurn ? 'Esperando...' : 'Lanzar Dados'}
             </Button>
             {dice1 && getDiceIcon(dice1)}
 
@@ -1461,6 +1616,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
               size="sm"
               className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
               onClick={() => setShowTradeModal(true)}
+              disabled={!isMyTurn}
             >
               Negociar
             </Button>
@@ -1501,7 +1657,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
       <CasinoRouletteModal
         isOpen={showCasinoModal}
-        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerMoney={playersInGame.find(p => p.id === currentPlayer)?.money || 0}
         playerName={playersInGame.find((p) => p.id === currentPlayer)?.name || "Jugador"}
         casinoName={casinoName || "Casino"}
         onApplyResult={handleCasinoResult}
@@ -1510,7 +1666,7 @@ export function MonopolyScreen({ onNavigate }: MonopolyScreenProps = {}) {
 
       <BlackjackModal
         isOpen={showBlackjackModal}
-        playerMoney={playersInGame[currentPlayer - 1]?.money || 0}
+        playerMoney={playersInGame.find(p => p.id === currentPlayer)?.money || 0}
         playerName={playersInGame.find((p) => p.id === currentPlayer)?.name || "Jugador"}
         casinoName={blackjackName || "Casino"}
         onApplyResult={handleBlackjackResult}

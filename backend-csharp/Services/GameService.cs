@@ -180,8 +180,10 @@ public class GameService : IGameService
             Money = player.Money,
             Position = player.Position,
             IsInJail = player.IsInJail,
+            JailTurns = player.JailTurns,
             GetOutOfJailCards = player.GetOutOfJailCards,
             IsBankrupt = player.IsBankrupt,
+            TurnOrder = player.TurnOrder,
             Token = player.Token,
             OwnedProperties = player.OwnedProperties.Select(po => new PropertyOwnershipDto
             {

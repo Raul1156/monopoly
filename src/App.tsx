@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Toaster } from 'sonner';
 import { LoginScreen } from '../components/LoginScreen';
 import { MainMenu } from '../components/MainMenu';
 import { RankingScreen } from '../components/RankingScreen';
@@ -9,14 +10,18 @@ import { ShopScreen } from '../components/ShopScreen';
 import { InventoryScreen } from '../components/InventoryScreen';
 import { SettingsScreen } from '../components/SettingsScreen';
 import { Navigation } from '../components/Navigation';
+import { PlayModeScreen } from '../components/PlayModeScreen';
+import { LobbyScreen } from '../components/LobbyScreen';
 import { apiService, type User } from './services/apiService';
 
-export type Screen = 'login' | 'menu' | 'ranking' | 'profile' | 'events' | 'monopoly' | 'shop' | 'inventory' | 'settings';
+export type Screen = 'login' | 'menu' | 'ranking' | 'profile' | 'events' | 'monopoly' | 'shop' | 'inventory' | 'settings' | 'playmode' | 'lobby';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [lobbyCode, setLobbyCode] = useState<string | null>(null);
+  const [activeGameId, setActiveGameId] = useState<number | null>(null);
 
   const handleAuth = async (params: { mode: 'login' | 'register'; username: string; password: string; email?: string }) => {
     try {
@@ -54,6 +59,7 @@ export default function App() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-red-900 via-red-800 to-amber-900 flex flex-col w-full relative overflow-hidden">
       {/* Background Pattern */}
       <div 
@@ -80,8 +86,33 @@ export default function App() {
         {currentScreen === 'events' && (
           <EventosScreen />
         )}
-        {currentScreen === 'monopoly' && (
-          <MonopolyScreen onNavigate={navigateToScreen} />
+        {currentScreen === 'playmode' && currentUser && (
+          <PlayModeScreen 
+            onNavigate={navigateToScreen} 
+            userId={currentUser.id} 
+            onJoinLobby={(code) => {
+              setLobbyCode(code);
+              setCurrentScreen('lobby');
+            }} 
+          />
+        )}
+        {currentScreen === 'lobby' && currentUser && lobbyCode && (
+          <LobbyScreen 
+            lobbyCode={lobbyCode} 
+            userId={currentUser.id} 
+            onBack={() => setCurrentScreen('playmode')}
+            onGameStarted={(gameId) => {
+              setActiveGameId(gameId);
+              setCurrentScreen('monopoly');
+            }}
+          />
+        )}
+        {currentScreen === 'monopoly' && currentUser && activeGameId && (
+          <MonopolyScreen 
+            onNavigate={navigateToScreen} 
+            currentUser={currentUser}
+            gameId={activeGameId}
+          />
         )}
         {currentScreen === 'shop' && (
           <ShopScreen onNavigate={navigateToScreen} currentUser={currentUser} />
@@ -94,9 +125,11 @@ export default function App() {
         )}
       </div>
 
-      {currentScreen !== 'login' && !['shop', 'inventory', 'monopoly'].includes(currentScreen) && (
+      {currentScreen !== 'login' && !['shop', 'inventory', 'monopoly', 'playmode', 'lobby'].includes(currentScreen) && (
         <Navigation currentScreen={currentScreen} onNavigate={navigateToScreen} />
       )}
     </div>
+    <Toaster position="top-center" richColors />
+    </>
   );
 }

@@ -90,7 +90,7 @@ export function MainMenu({ user, onNavigate }: MainMenuProps) {
 
           {/* Main Play Button - Central */}
           <Button
-            onClick={() => onNavigate('monopoly')}
+            onClick={() => onNavigate('playmode')}
             className="h-80 bg-gradient-to-br from-red-600 via-amber-600 to-red-700 hover:from-red-700 hover:via-amber-700 hover:to-red-800 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 border-4 border-amber-400/50 rounded-3xl relative overflow-hidden"
           >
             {/* Decorative background pattern */}

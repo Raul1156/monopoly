@@ -80,8 +80,8 @@ export function TradeModal({
     });
   };
 
-  const fromTradable = fromPlayer.properties.filter((pp) => !hasBuildingsInGroup(fromPlayer, pp.propertyId));
-  const toTradable = toPlayer
+  const fromTradable = isOpen && fromPlayer ? fromPlayer.properties.filter((pp) => !hasBuildingsInGroup(fromPlayer, pp.propertyId)) : [];
+  const toTradable = isOpen && toPlayer
     ? toPlayer.properties.filter((pp) => !hasBuildingsInGroup(toPlayer, pp.propertyId))
     : [];
 

@@ -32,6 +32,24 @@ export interface CreateGameRequest {
   maxPlayers: number;
 }
 
+export interface LobbyInfo {
+  gameId: number;
+  code: string;
+  status: string;
+  maxPlayers: number;
+  hostUserId: number;
+  players: LobbyPlayer[];
+}
+
+export interface LobbyPlayer {
+  userId: number;
+  username: string;
+  avatar: string;
+  color: string;
+  order: number;
+  isHost: boolean;
+}
+
 export interface Game {
   id: number;
   name: string;
@@ -48,7 +66,9 @@ export interface PlayerInGame {
   position: number;
   isInJail: boolean;
   jailTurns: number;
+  getOutOfJailCards: number;
   isBankrupt: boolean;
+  turnOrder: number;
   token: string;
   ownedProperties: PropertyOwnership[];
 }
@@ -252,6 +272,37 @@ class ApiService {
   async startGame(gameId: number): Promise<Game> {
     return this.request<Game>(`/games/${gameId}/start`, {
       method: 'POST',
+    });
+  }
+
+  // Lobby endpoints
+  async createLobby(hostUserId: number, maxPlayers: number): Promise<LobbyInfo> {
+    return this.request<LobbyInfo>(`/lobby/create?hostUserId=${hostUserId}`, {
+      method: 'POST',
+      body: JSON.stringify({ maxPlayers }),
+    });
+  }
+
+  async joinLobby(code: string, userId: number): Promise<LobbyInfo> {
+    return this.request<LobbyInfo>(`/lobby/join?userId=${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  async getLobby(code: string): Promise<LobbyInfo> {
+    return this.request<LobbyInfo>(`/lobby/${code}`);
+  }
+
+  async startLobby(code: string, hostUserId: number): Promise<LobbyInfo> {
+    return this.request<LobbyInfo>(`/lobby/${code}/start?hostUserId=${hostUserId}`, {
+      method: 'POST',
+    });
+  }
+
+  async leaveLobby(code: string, userId: number): Promise<void> {
+    return this.request<void>(`/lobby/${code}/leave?userId=${userId}`, {
+      method: 'DELETE',
     });
   }
 
