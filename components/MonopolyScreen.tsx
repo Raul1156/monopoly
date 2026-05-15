@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { MapPin, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Home } from "lucide-react";
+import { MapPin, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Home, LogOut } from "lucide-react";
 import boardImage from "../Tablero2_1.png";
 import { toast } from "sonner";
 import type { Screen } from "../src/App";
@@ -124,6 +124,11 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
   const [debugDiceValue, setDebugDiceValue] = useState<number>(1);
 
   const [boardProperties, setBoardProperties] = useState<Property[]>([]);
+
+  // Game over state
+  const [gameOver, setGameOver] = useState(false);
+  const [gameWinner, setGameWinner] = useState<{ id: number; name: string; reason: string } | null>(null);
+  const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
 
   const propertyPositionByDbId = useMemo(() => {
     const map = new Map<number, number>();
@@ -258,7 +263,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
     const start = async () => {
       try {
         await connection.start();
-        await connection.invoke("JoinGame", gameId);
+        await connection.invoke("JoinGame", gameId, currentUser.id, currentUser.username);
         console.log("[SignalR] Connected to game", gameId);
       } catch (err) {
         console.warn("SignalR connection failed:", err);
@@ -369,6 +374,90 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
           };
         })
       );
+    });
+
+    connection.on("RentPaid", (payload: { fromUserId: number; toUserId: number; amount: number; fromMoneyAfter: number; toMoneyAfter: number }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote RentPaid:", payload);
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          if (player.id === payload.fromUserId) return { ...player, money: payload.fromMoneyAfter };
+          if (player.id === payload.toUserId) return { ...player, money: payload.toMoneyAfter };
+          return player;
+        })
+      );
+    });
+
+    connection.on("CasinoResult", (payload: { userId: number; moneyAfter: number }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote CasinoResult:", payload);
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId ? { ...player, money: payload.moneyAfter } : player
+        )
+      );
+    });
+
+    connection.on("TradeCompleted", (payload: { fromUserId: number; toUserId: number; fromMoneyAfter: number; toMoneyAfter: number; fromProperties: number[]; toProperties: number[]; fromPropertyDbIds: number[]; toPropertyDbIds: number[] }) => {
+      if (!active) return;
+      console.log("[SignalR] Remote TradeCompleted:", payload);
+      const tradedIds = new Set<number>([...payload.fromProperties, ...payload.toProperties]);
+      setPlayersInGame((prev) =>
+        prev.map((player) => {
+          if (player.id === payload.fromUserId) {
+            const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
+            const incoming = payload.toProperties.map((pid, i) => ({ propertyId: pid, propertyDbId: payload.toPropertyDbIds?.[i], level: 0 }));
+            return { ...player, money: payload.fromMoneyAfter, properties: [...remaining, ...incoming] };
+          }
+          if (player.id === payload.toUserId) {
+            const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
+            const incoming = payload.fromProperties.map((pid, i) => ({ propertyId: pid, propertyDbId: payload.fromPropertyDbIds?.[i], level: 0 }));
+            return { ...player, money: payload.toMoneyAfter, properties: [...remaining, ...incoming] };
+          }
+          return player;
+        })
+      );
+    });
+
+    connection.on("PlayerLeft", (payload: { userId: number; username: string; reason: string }) => {
+      if (!active) return;
+      console.log("[SignalR] PlayerLeft:", payload);
+      const reasonText = payload.reason === "abandoned" ? "ha abandonado" : "se ha desconectado de";
+      toast.warning(`🚪 ${payload.username} ${reasonText} la partida`);
+
+      // Mark player as bankrupt/eliminated
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId ? { ...player, money: 0 } : player
+        )
+      );
+
+      // If it was the leaving player's turn, advance to next
+      setPlayersInGame((prev) => {
+        const activePlayers = prev.filter((p) => p.money > 0 && p.id !== payload.userId).map((p) => p.id);
+        if (activePlayers.length > 0) {
+          // Use a timeout to let state settle
+          setTimeout(() => {
+            setCurrentPlayer((currentTurn) => {
+              if (currentTurn === payload.userId) {
+                const next = activePlayers[0];
+                setDice1(null);
+                setHasRolledDice(false);
+                return next;
+              }
+              return currentTurn;
+            });
+          }, 100);
+        }
+        return prev;
+      });
+    });
+
+    connection.on("GameWonByForfeit", (payload: { winnerId: number; winnerName: string }) => {
+      if (!active) return;
+      console.log("[SignalR] GameWonByForfeit:", payload);
+      setGameOver(true);
+      setGameWinner({ id: payload.winnerId, name: payload.winnerName, reason: "incomparecencia" });
     });
 
     start();
@@ -702,7 +791,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       );
 
       // Broadcast dice roll to other players
-      const moneyAfterMove = (playersInGame.find(p => p.id === currentPlayer)?.money ?? 0) + (passedGo ? 200 : 0);
+      const moneyAfterMove = currentPlayerData.money + (passedGo ? 200 : 0);
       try {
         await connectionRef.current?.invoke("BroadcastDiceRoll", gameId, currentPlayer, singleDie, newPosition, passedGo, moneyAfterMove);
       } catch (e) { console.warn("Failed to broadcast dice roll:", e); }
@@ -746,7 +835,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
         );
         toast.info("💸 Impuestos: Has pagado 200");
         // Broadcast tax to other players
-        const moneyAfterTax = Math.max(0, (playersInGame.find(p => p.id === currentPlayer)?.money ?? 0) - 200);
+        const moneyAfterTax = Math.max(0, moneyAfterMove - 200);
         connectionRef.current?.invoke("BroadcastTaxPaid", gameId, currentPlayer, moneyAfterTax).catch(() => {});
       }
 
@@ -849,6 +938,13 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
                   } else {
                     toast.error(card.description);
                   }
+
+                  // Broadcast card effect money updates to other players
+                  setPlayersInGame((prev) => {
+                    const updates = prev.map((p) => ({ userId: p.id, money: p.money }));
+                    connectionRef.current?.invoke("BroadcastCardEffect", gameId, updates).catch(() => {});
+                    return prev; // no mutation, just reading for broadcast
+                  });
                 })
                 .catch((e) => {
                   console.error("Error robando carta:", e);
@@ -928,11 +1024,16 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
                 })
               );
 
-              const currentPlayerAfterRent = playersInGame.find((p) => p.id === currentPlayer);
-              const newMoneyAfterRent = Math.max(0, (currentPlayerAfterRent?.money ?? 0) - rentAmount);
+              // Use moneyAfterMove (pre-state) to compute correct values for broadcast
+              const currentMoneyBeforeRent = newPosition === 4 ? Math.max(0, moneyAfterMove - 200) : moneyAfterMove;
+              const fromMoneyAfterRent = Math.max(0, currentMoneyBeforeRent - rentAmount);
+              const toMoneyAfterRent = (propertyOwner.money) + rentAmount;
 
-              if (newMoneyAfterRent <= 0) {
-                toast.error(`💥 ¡${playersInGame.find((p) => p.id === currentPlayer)?.name} ha quedado en bancarrota!`);
+              // Broadcast rent to other players
+              connectionRef.current?.invoke("BroadcastRentPaid", gameId, currentPlayer, propertyOwner.id, rentAmount, fromMoneyAfterRent, toMoneyAfterRent).catch(() => {});
+
+              if (fromMoneyAfterRent <= 0) {
+                toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
               } else {
                 toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
               }
@@ -1045,6 +1146,12 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
     );
 
     toast.success(`🏗️ Mejora comprada en ${property.nombre}`);
+
+    // Broadcast property upgrade to other players
+    if (property.propertyDbId) {
+      const moneyAfterBuild = Math.max(0, currentPlayerData.money - cost);
+      connectionRef.current?.invoke("BroadcastPropertyUpgrade", gameId, currentPlayer, property.propertyDbId, nextLevel, moneyAfterBuild).catch(() => {});
+    }
 
     if (property.propertyDbId) {
       apiService.buildUpgrade(gameId, currentPlayer, property.propertyDbId)
@@ -1192,6 +1299,27 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
 
     toast.success("✅ Trato realizado");
 
+    // Broadcast trade to other players
+    setPlayersInGame((prev) => {
+      const fromAfter = prev.find((p) => p.id === currentPlayer);
+      const toAfter = prev.find((p) => p.id === payload.toPlayerId);
+      if (fromAfter && toAfter) {
+        const fromPropertyDbIds = fromPropertyIds.map((id) => boardProperties[id]?.propertyDbId ?? 0);
+        const toPropertyDbIds = toPropertyIds.map((id) => boardProperties[id]?.propertyDbId ?? 0);
+        connectionRef.current?.invoke("BroadcastTradeCompleted", gameId, {
+          fromUserId: currentPlayer,
+          toUserId: payload.toPlayerId,
+          fromMoneyAfter: fromAfter.money,
+          toMoneyAfter: toAfter.money,
+          fromProperties: fromPropertyIds,
+          toProperties: toPropertyIds,
+          fromPropertyDbIds,
+          toPropertyDbIds,
+        }).catch(() => {});
+      }
+      return prev;
+    });
+
     const mapToTradeDto = (propertyId: number) => {
       const dbId = boardProperties[propertyId]?.propertyDbId;
       return dbId ? { propertyId: dbId, releaseMortgageNow: false } : null;
@@ -1299,45 +1427,49 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
   /*tram*/
 
   const handleCasinoResult = (delta: number) => {
-    let moneyAfter: number | null = null;
-    let currentName: string | null = null;
-
-    setPlayersInGame((prev) =>
-      prev.map((player) => {
+    setPlayersInGame((prev) => {
+      const updated = prev.map((player) => {
         if (player.id === currentPlayer) {
           const updatedMoney = Math.max(0, player.money + delta);
-          moneyAfter = updatedMoney;
-          currentName = player.name;
           return { ...player, money: updatedMoney };
         }
         return player;
-      })
-    );
+      });
 
-    if (moneyAfter !== null && moneyAfter <= 0) {
-      toast.error(`💥 ¡${currentName ?? "El jugador"} ha quedado en bancarrota!`);
-    }
+      // Broadcast casino result to other players
+      const playerAfter = updated.find((p) => p.id === currentPlayer);
+      if (playerAfter) {
+        connectionRef.current?.invoke("BroadcastCasinoResult", gameId, currentPlayer, playerAfter.money).catch(() => {});
+        if (playerAfter.money <= 0) {
+          toast.error(`💥 ¡${playerAfter.name} ha quedado en bancarrota!`);
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleBlackjackResult = (delta: number) => {
-    let moneyAfter: number | null = null;
-    let currentName: string | null = null;
-
-    setPlayersInGame((prev) =>
-      prev.map((player) => {
+    setPlayersInGame((prev) => {
+      const updated = prev.map((player) => {
         if (player.id === currentPlayer) {
           const updatedMoney = Math.max(0, player.money + delta);
-          moneyAfter = updatedMoney;
-          currentName = player.name;
           return { ...player, money: updatedMoney };
         }
         return player;
-      })
-    );
+      });
 
-    if (moneyAfter !== null && moneyAfter <= 0) {
-      toast.error(`💥 ¡${currentName ?? "El jugador"} ha quedado en bancarrota!`);
-    }
+      // Broadcast blackjack result to other players
+      const playerAfter = updated.find((p) => p.id === currentPlayer);
+      if (playerAfter) {
+        connectionRef.current?.invoke("BroadcastCasinoResult", gameId, currentPlayer, playerAfter.money).catch(() => {});
+        if (playerAfter.money <= 0) {
+          toast.error(`💥 ¡${playerAfter.name} ha quedado en bancarrota!`);
+        }
+      }
+
+      return updated;
+    });
   };
 
   // Icono del dado
