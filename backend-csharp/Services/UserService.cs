@@ -115,7 +115,6 @@ public class UserService : IUserService
             throw new Exception("User not found");
 
         user.Avatar = userDto.Avatar;
-        user.Level = userDto.Level;
         await _context.SaveChangesAsync();
 
         return MapToDto(user);
@@ -129,12 +128,14 @@ public class UserService : IUserService
             Username = user.Username,
             Email = user.Email,
             Avatar = user.Avatar,
-            Level = user.Level,
             GamesPlayed = user.GamesPlayed,
             GamesWon = user.GamesWon,
             TotalMoney = user.TotalMoney,
             TimePlayedHours = user.TimePlayedHours,
-            Elo = user.Elo
+            Elo = user.Elo,
+            CurrentStreak = 0,
+            BestStreak = 0,
+            IsAdmin = false
         };
     }
 }

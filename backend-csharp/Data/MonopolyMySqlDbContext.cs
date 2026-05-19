@@ -19,6 +19,10 @@ public class MonopolyMySqlDbContext : DbContext
     public DbSet<CartaEntity> Cartas => Set<CartaEntity>();
     public DbSet<ProductoEntity> Productos => Set<ProductoEntity>();
     public DbSet<InventarioEntity> Inventario => Set<InventarioEntity>();
+    public DbSet<LogroEntity> Logros => Set<LogroEntity>();
+    public DbSet<UsuarioLogroEntity> UsuarioLogros => Set<UsuarioLogroEntity>();
+    public DbSet<RecompensaEntity> Recompensas => Set<RecompensaEntity>();
+    public DbSet<HistorialRecompensaEntity> HistorialRecompensas => Set<HistorialRecompensaEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +45,12 @@ public class MonopolyMySqlDbContext : DbContext
             entity.Property(e => e.PartidasJugadas).HasColumnName("partidas_jugadas");
             entity.Property(e => e.PartidasGanadas).HasColumnName("partidas_ganadas");
             entity.Property(e => e.Activo).HasColumnName("activo");
+            entity.Property(e => e.TiempoJugadoMinutos).HasColumnName("tiempo_jugado_minutos");
+            entity.Property(e => e.RachaActual).HasColumnName("racha_actual");
+            entity.Property(e => e.MejorRacha).HasColumnName("mejor_racha");
+            entity.Property(e => e.EsAdmin).HasColumnName("es_admin");
+            entity.Property(e => e.TwoFactorSecret).HasColumnName("two_factor_secret").HasMaxLength(255);
+            entity.Property(e => e.TwoFactorEnabled).HasColumnName("two_factor_enabled");
             entity.Property(e => e.UltimoLogin).HasColumnName("ultimo_login");
             entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
             entity.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en");
@@ -126,6 +136,10 @@ public class MonopolyMySqlDbContext : DbContext
             entity.Property(e => e.PosicionActual).HasColumnName("posicion_actual");
             entity.Property(e => e.DineroActual).HasColumnName("dinero_actual").IsRequired();
             entity.Property(e => e.TurnosCarcel).HasColumnName("turnos_carcel");
+            entity.Property(e => e.PosicionFinal).HasColumnName("posicion_final");
+            entity.Property(e => e.EloGanado).HasColumnName("elo_ganado");
+            entity.Property(e => e.MonedaGanada).HasColumnName("moneda_ganada");
+            entity.Property(e => e.ExperienciaGanada).HasColumnName("experiencia_ganada");
             entity.Property(e => e.Activo).HasColumnName("activo");
             entity.HasIndex(e => new { e.PartidaId, e.UsuarioId }).IsUnique();
 
@@ -179,6 +193,75 @@ public class MonopolyMySqlDbContext : DbContext
             entity.HasOne(e => e.Producto)
                 .WithMany()
                 .HasForeignKey(e => e.ProductoId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LogroEntity>(entity =>
+        {
+            entity.ToTable("logros");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Icono).HasColumnName("icono").HasMaxLength(10);
+            entity.Property(e => e.RecompensaPts).HasColumnName("recompensa_pts");
+            entity.Property(e => e.Condicion).HasColumnName("condicion").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ValorObjetivo).HasColumnName("valor_objetivo");
+        });
+
+        modelBuilder.Entity<UsuarioLogroEntity>(entity =>
+        {
+            entity.ToTable("usuario_logros");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
+            entity.Property(e => e.LogroId).HasColumnName("logro_id").IsRequired();
+            entity.Property(e => e.DesbloqueadoEn).HasColumnName("desbloqueado_en");
+            entity.HasIndex(e => new { e.UsuarioId, e.LogroId }).IsUnique();
+
+            entity.HasOne(e => e.Usuario)
+                .WithMany()
+                .HasForeignKey(e => e.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Logro)
+                .WithMany()
+                .HasForeignKey(e => e.LogroId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecompensaEntity>(entity =>
+        {
+            entity.ToTable("recompensas");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Descripcion).HasColumnName("descripcion");
+            entity.Property(e => e.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.MonedaLobby).HasColumnName("moneda_lobby");
+            entity.Property(e => e.Gemas).HasColumnName("gemas");
+            entity.Property(e => e.Experiencia).HasColumnName("experiencia");
+            entity.Property(e => e.Requisito).HasColumnName("requisito").HasMaxLength(255);
+            entity.Property(e => e.Activa).HasColumnName("activa");
+            entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
+        });
+
+        modelBuilder.Entity<HistorialRecompensaEntity>(entity =>
+        {
+            entity.ToTable("historial_recompensas");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
+            entity.Property(e => e.RecompensaId).HasColumnName("recompensa_id").IsRequired();
+            entity.Property(e => e.MonedaRecibida).HasColumnName("moneda_recibida");
+            entity.Property(e => e.GemasRecibidas).HasColumnName("gemas_recibidas");
+            entity.Property(e => e.ExperienciaRecibida).HasColumnName("experiencia_recibida");
+            entity.Property(e => e.Fecha).HasColumnName("fecha");
+
+            entity.HasOne(e => e.Usuario)
+                .WithMany()
+                .HasForeignKey(e => e.UsuarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Recompensa)
+                .WithMany()
+                .HasForeignKey(e => e.RecompensaId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

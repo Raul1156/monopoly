@@ -16,6 +16,12 @@ public class UsuarioEntity
     public int PartidasJugadas { get; set; }
     public int PartidasGanadas { get; set; }
     public bool Activo { get; set; }
+    public int TiempoJugadoMinutos { get; set; }
+    public int RachaActual { get; set; }
+    public int MejorRacha { get; set; }
+    public bool EsAdmin { get; set; }
+    public string? TwoFactorSecret { get; set; }
+    public bool TwoFactorEnabled { get; set; }
     public DateTime? UltimoLogin { get; set; }
     public DateTime CreadoEn { get; set; }
     public DateTime ActualizadoEn { get; set; }

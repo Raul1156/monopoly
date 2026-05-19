@@ -244,7 +244,36 @@ public class GameHub : Hub
             });
     }
 
+    /// <summary>
+    /// Propose a trade offer to another player (bilateral).
+    /// </summary>
+    public async Task ProposeTradeOffer(int gameId, int toUserId, object offer)
+    {
+        await Clients.Group(GetGameGroup(gameId))
+            .SendAsync("TradeOfferReceived", new
+            {
+                gameId,
+                toUserId,
+                offer
+            });
+    }
+
+    /// <summary>
+    /// Respond to a trade offer (accept/reject).
+    /// </summary>
+    public async Task RespondTradeOffer(int gameId, int fromUserId, bool accepted)
+    {
+        await Clients.Group(GetGameGroup(gameId))
+            .SendAsync("TradeOfferResponse", new
+            {
+                gameId,
+                fromUserId,
+                accepted
+            });
+    }
+
     // === Group name helpers ===
     public static string GetGameGroup(int gameId) => $"game-{gameId}";
     public static string GetLobbyGroup(string code) => $"lobby-{code.ToUpper()}";
 }
+

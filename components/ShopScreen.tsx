@@ -5,7 +5,6 @@ import { Badge } from './ui/badge';
 import { 
   ShoppingBag, 
   Coins,
-  Star,
   ArrowLeft
 } from 'lucide-react';
 import type { Screen } from '../src/App.tsx';
@@ -21,8 +20,8 @@ interface ShopItem {
   name: string;
   description: string;
   price: number;
-  currency: 'pts' | 'gems';
-  category: 'avatar' | 'theme';
+  currency: 'pts';
+  category: 'theme';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   preview: string;
 }
@@ -38,7 +37,7 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
     apiService.getShopProducts()
       .then((products: ShopProduct[]) => {
         if (!mounted) return;
-        setShopItems(products);
+        setShopItems((products as ShopItem[]).filter(p => p.category === 'theme'));
       })
       .catch((err) => {
         console.error('Error loading shop products:', err);
@@ -62,7 +61,6 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
   };
 
   const categoryIcons = {
-    avatar: '👤',
     theme: '🎨'
   };
 
@@ -124,13 +122,9 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
               <div className="flex items-center justify-between mb-4">
                 <span className="text-white/60">Precio:</span>
                 <div className="flex items-center space-x-2">
-                  {selectedItem.currency === 'pts' ? (
-                    <Coins className="w-5 h-5 text-green-400" />
-                  ) : (
-                    <Star className="w-5 h-5 text-purple-400" />
-                  )}
-                  <span className={`text-2xl ${selectedItem.currency === 'pts' ? 'text-green-400' : 'text-purple-400'}`}>
-                    {selectedItem.price.toLocaleString()} {selectedItem.currency}
+                  <Coins className="w-5 h-5 text-green-400" />
+                  <span className="text-2xl text-green-400">
+                    {selectedItem.price.toLocaleString()} pts
                   </span>
                 </div>
               </div>
@@ -138,27 +132,15 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-amber-500/20">
                 <span className="text-white/60">Tu saldo actual:</span>
                 <div className="flex items-center space-x-2">
-                  {selectedItem.currency === 'pts' ? (
-                    <>
-                      <Coins className="w-4 h-4 text-green-400" />
-                      <span className="text-green-400">{currentUser.totalMoney.toLocaleString()} pts</span>
-                    </>
-                  ) : (
-                    <>
-                      <Star className="w-4 h-4 text-purple-400" />
-                      <span className="text-purple-400">{currentUser.gems.toLocaleString()} gems</span>
-                    </>
-                  )}
+                  <Coins className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400">{currentUser.totalMoney.toLocaleString()} pts</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between mb-6">
                 <span className="text-white">Saldo después de la compra:</span>
-                <span className={selectedItem.currency === 'pts' ? 'text-green-400' : 'text-purple-400'}>
-                  {selectedItem.currency === 'pts' 
-                    ? `${Math.max(0, currentUser.totalMoney - selectedItem.price).toLocaleString()} pts`
-                    : `${Math.max(0, currentUser.gems - selectedItem.price).toLocaleString()} gems`
-                  }
+                <span className="text-green-400">
+                  {Math.max(0, currentUser.totalMoney - selectedItem.price).toLocaleString()} pts
                 </span>
               </div>
 
@@ -199,10 +181,6 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
             <Coins className="w-4 h-4 mr-1" />
             <span>{currentUser.totalMoney.toLocaleString()} pts</span>
           </div>
-          <div className="flex items-center text-purple-300">
-            <Star className="w-4 h-4 mr-1" />
-            <span>{currentUser.gems.toLocaleString()}</span>
-          </div>
         </div>
       </div>
 
@@ -210,19 +188,10 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
         <div className="text-white/60 text-center py-6">Cargando productos...</div>
       )}
 
-      {/* Categories */}
-      <div className="grid grid-cols-2 gap-2 mb-6">
-        {['avatar', 'theme'].map((category) => (
-          <Button
-            key={category}
-            variant="outline"
-            size="sm"
-            className="bg-black/40 border-amber-500/30 text-white hover:bg-amber-500/20 flex flex-col items-center py-3 h-auto"
-          >
-            <span className="text-lg mb-1">{categoryIcons[category as keyof typeof categoryIcons]}</span>
-            <span className="text-xs capitalize">{category}</span>
-          </Button>
-        ))}
+      {/* Category header */}
+      <div className="flex items-center space-x-2 mb-4">
+        <span className="text-lg">🎨</span>
+        <h2 className="text-white font-semibold">Temas disponibles</h2>
       </div>
 
       {/* Shop Items */}
@@ -251,13 +220,9 @@ export function ShopScreen({ onNavigate, currentUser }: ShopScreenProps) {
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-1">
-                      {item.currency === 'pts' ? (
-                        <Coins className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Star className="w-4 h-4 text-purple-400" />
-                      )}
-                      <span className={`font-medium ${item.currency === 'pts' ? 'text-green-400' : 'text-purple-400'}`}>
-                        {item.price.toLocaleString()} {item.currency}
+                      <Coins className="w-4 h-4 text-green-400" />
+                      <span className="font-medium text-green-400">
+                        {item.price.toLocaleString()} pts
                       </span>
                     </div>
                     

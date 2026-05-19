@@ -6,13 +6,14 @@ export interface User {
   username: string;
   email: string;
   avatar: string;
-  level: string;
   gamesPlayed: number;
   gamesWon: number;
   totalMoney: number;
-  gems: number;
   timePlayedHours: number;
   elo: number;
+  currentStreak: number;
+  bestStreak: number;
+  isAdmin: boolean;
 }
 
 export interface LoginRequest {
@@ -171,7 +172,7 @@ export interface ShopProduct {
   name: string;
   description: string;
   price: number;
-  currency: 'pts' | 'gems';
+  currency: 'pts';
   category: 'avatar' | 'theme';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   preview: string;
@@ -181,11 +182,30 @@ export interface InventoryItem {
   productId: number;
   name: string;
   description: string;
-  category: 'avatars' | 'themes';
+  category: 'themes';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   preview: string;
   equipped: boolean;
   quantity: number;
+}
+
+export interface Achievement {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  rewardPts: number;
+  earned: boolean;
+  earnedAt?: string;
+}
+
+export interface DailyReward {
+  id: number;
+  name: string;
+  description: string;
+  type: string;
+  moneyReward: number;
+  claimed: boolean;
 }
 
 // API Service
@@ -245,6 +265,17 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(user),
     });
+  }
+
+  async changePassword(id: number, currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.request(`/users/${id}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  async getAchievements(userId: number): Promise<Achievement[]> {
+    return this.request<Achievement[]>(`/users/${userId}/achievements`);
   }
 
   // Game endpoints
@@ -398,6 +429,26 @@ class ApiService {
     });
   }
 
+  async mortgageProperty(gameId: number, playerId: number, propertyId: number): Promise<{ message: string; moneyLeft: number }> {
+    return this.request(`/gameactions/mortgage`, {
+      method: 'POST',
+      body: JSON.stringify({ gameId, playerId, propertyId }),
+    });
+  }
+
+  async unmortgageProperty(gameId: number, playerId: number, propertyId: number): Promise<{ message: string; moneyLeft: number }> {
+    return this.request(`/gameactions/unmortgage`, {
+      method: 'POST',
+      body: JSON.stringify({ gameId, playerId, propertyId }),
+    });
+  }
+
+  async endGame(gameId: number): Promise<{ message: string; winnerId: number }> {
+    return this.request(`/gameactions/end-game?gameId=${gameId}`, {
+      method: 'POST',
+    });
+  }
+
   // Shop endpoints
   async getShopProducts(): Promise<ShopProduct[]> {
     return this.request<ShopProduct[]>('/shop/products');
@@ -405,6 +456,42 @@ class ApiService {
 
   async getInventory(userId: number): Promise<InventoryItem[]> {
     return this.request<InventoryItem[]>(`/shop/inventory/${userId}`);
+  }
+
+  // Events endpoints
+  async getDailyRewards(userId: number): Promise<DailyReward[]> {
+    return this.request<DailyReward[]>(`/events/daily?userId=${userId}`);
+  }
+
+  async claimReward(recompensaId: number, userId: number): Promise<{ message: string; newBalance: number }> {
+    return this.request(`/events/claim/${recompensaId}?userId=${userId}`, {
+      method: 'POST',
+    });
+  }
+
+  // Admin endpoints
+  async getAdminUsers(adminUserId: number): Promise<unknown[]> {
+    return this.request(`/admin/users?adminUserId=${adminUserId}`);
+  }
+
+  async banUser(userId: number, adminUserId: number): Promise<{ message: string }> {
+    return this.request(`/admin/users/${userId}/ban?adminUserId=${adminUserId}`, { method: 'PUT' });
+  }
+
+  async unbanUser(userId: number, adminUserId: number): Promise<{ message: string }> {
+    return this.request(`/admin/users/${userId}/unban?adminUserId=${adminUserId}`, { method: 'PUT' });
+  }
+
+  async makeAdmin(userId: number, adminUserId: number): Promise<{ message: string }> {
+    return this.request(`/admin/users/${userId}/make-admin?adminUserId=${adminUserId}`, { method: 'PUT' });
+  }
+
+  async resetElo(userId: number, adminUserId: number): Promise<{ message: string }> {
+    return this.request(`/admin/users/${userId}/reset-elo?adminUserId=${adminUserId}`, { method: 'PUT' });
+  }
+
+  async getAdminStats(adminUserId: number): Promise<{ totalUsers: number; activeUsers: number; totalGames: number; activeGames: number; bannedUsers: number }> {
+    return this.request(`/admin/stats?adminUserId=${adminUserId}`);
   }
 }
 

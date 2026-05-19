@@ -12,9 +12,10 @@ import { SettingsScreen } from '../components/SettingsScreen';
 import { Navigation } from '../components/Navigation';
 import { PlayModeScreen } from '../components/PlayModeScreen';
 import { LobbyScreen } from '../components/LobbyScreen';
+import { AdminScreen } from '../components/AdminScreen';
 import { apiService, type User } from './services/apiService';
 
-export type Screen = 'login' | 'menu' | 'ranking' | 'profile' | 'events' | 'monopoly' | 'shop' | 'inventory' | 'settings' | 'playmode' | 'lobby';
+export type Screen = 'login' | 'menu' | 'ranking' | 'profile' | 'events' | 'monopoly' | 'shop' | 'inventory' | 'settings' | 'playmode' | 'lobby' | 'admin';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -54,6 +55,10 @@ export default function App() {
     setCurrentScreen(screen);
   };
 
+  const handleUserUpdate = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+  };
+
   if (!isLoggedIn || !currentUser) {
     return <LoginScreen onAuth={handleAuth} />;
   }
@@ -71,8 +76,6 @@ export default function App() {
         }}
       />
 
-      {/* Banner temporal para verificar Tailwind (eliminado en producción) */}
-      
       <div className="flex-1 relative z-10">
         {currentScreen === 'menu' && (
           <MainMenu user={currentUser} onNavigate={navigateToScreen} />
@@ -81,10 +84,10 @@ export default function App() {
           <RankingScreen currentUser={currentUser} />
         )}
         {currentScreen === 'profile' && (
-          <ProfileScreen user={currentUser} onLogout={handleLogout} />
+          <ProfileScreen currentUser={currentUser} onUserUpdate={handleUserUpdate} />
         )}
         {currentScreen === 'events' && (
-          <EventosScreen />
+          <EventosScreen currentUser={currentUser} onUserUpdate={handleUserUpdate} />
         )}
         {currentScreen === 'playmode' && currentUser && (
           <PlayModeScreen 
@@ -122,6 +125,9 @@ export default function App() {
         )}
         {currentScreen === 'settings' && (
           <SettingsScreen onNavigate={navigateToScreen} onLogout={handleLogout} />
+        )}
+        {currentScreen === 'admin' && (
+          <AdminScreen currentUser={currentUser} />
         )}
       </div>
 

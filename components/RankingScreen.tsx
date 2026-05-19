@@ -74,7 +74,7 @@ const UserRankingCard = ({ user, rank, isCurrentUser, isPinned = false }: { user
               <Badge className="bg-blue-500 text-white whitespace-nowrap">FIJADO</Badge>
             )}
           </div>
-          <p className="text-amber-300 text-base mt-1 truncate">{user.level}</p>
+          <p className="text-amber-300 text-base mt-1 truncate">{user.gamesWon} victorias / {user.gamesPlayed} partidas</p>
           <div className="flex flex-wrap gap-4 text-sm text-white/60 mt-2">
             <span>{user.gamesPlayed} partidas</span>
             <span>{user.gamesWon} victorias</span>

@@ -11,7 +11,7 @@ import { apiService, type BoardSpace as ApiBoardSpace } from "../src/services/ap
 import { CasinoRouletteModal } from "./CasinoRouletteModal";
 import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
-import { TradeModal } from "./TradeModal";
+import { TradeModal, IncomingTradeOffer } from "./TradeModal";
 import { HubConnectionBuilder, LogLevel, type HubConnection } from "@microsoft/signalr";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { PropertyInfoCard } from "./PropertyInfoCard";
@@ -41,6 +41,7 @@ interface LocalPlayer {
   isInJail: boolean;
   jailTurns: number;
   getOutOfJailCards: number;
+  eliminated: boolean;
 }
 
 interface CasillaUpgradeMarkerProps {
@@ -130,6 +131,15 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
   const [gameWinner, setGameWinner] = useState<{ id: number; name: string; reason: string } | null>(null);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
 
+  // Incoming trade offer state
+  const [incomingOffer, setIncomingOffer] = useState<{
+    fromPlayerId: number;
+    fromPlayerName: string;
+    propertyName: string;
+    propertyId: number;
+    cashOffer: number;
+  } | null>(null);
+
   const propertyPositionByDbId = useMemo(() => {
     const map = new Map<number, number>();
     boardProperties.forEach((prop, idx) => {
@@ -139,6 +149,10 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
     });
     return map;
   }, [boardProperties]);
+
+  // Ref for SignalR handlers to avoid stale closures and unnecessary reconnections
+  const propertyPositionByDbIdRef = useRef(propertyPositionByDbId);
+  useEffect(() => { propertyPositionByDbIdRef.current = propertyPositionByDbId; }, [propertyPositionByDbId]);
 
   useEffect(() => {
     let mounted = true;
@@ -353,7 +367,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
 
     connection.on("PropertyUpgradeChanged", (payload: { propertyId: number; level: number; ownerId: number; money?: number }) => {
       if (!active) return;
-      const position = propertyPositionByDbId.get(payload.propertyId);
+      const position = propertyPositionByDbIdRef.current.get(payload.propertyId);
       if (position === undefined) return;
 
       setPlayersInGame((prev) =>
@@ -425,16 +439,16 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       const reasonText = payload.reason === "abandoned" ? "ha abandonado" : "se ha desconectado de";
       toast.warning(`🚪 ${payload.username} ${reasonText} la partida`);
 
-      // Mark player as bankrupt/eliminated
+      // Mark player as eliminated
       setPlayersInGame((prev) =>
         prev.map((player) =>
-          player.id === payload.userId ? { ...player, money: 0 } : player
+          player.id === payload.userId ? { ...player, eliminated: true } : player
         )
       );
 
       // If it was the leaving player's turn, advance to next
       setPlayersInGame((prev) => {
-        const activePlayers = prev.filter((p) => p.money > 0 && p.id !== payload.userId).map((p) => p.id);
+        const activePlayers = prev.filter((p) => !p.eliminated && p.id !== payload.userId).map((p) => p.id);
         if (activePlayers.length > 0) {
           // Use a timeout to let state settle
           setTimeout(() => {
@@ -467,9 +481,13 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       connectionRef.current = null;
       connection.stop();
     };
-  }, [gameId, propertyPositionByDbId]);
+  }, [gameId]);
 
   const [playersInGame, setPlayersInGame] = useState<LocalPlayer[]>([]);
+
+  // Ref to avoid stale closures in endTurn
+  const playersRef = useRef<LocalPlayer[]>(playersInGame);
+  useEffect(() => { playersRef.current = playersInGame; }, [playersInGame]);
 
   useEffect(() => {
     let isMounted = true;
@@ -488,7 +506,8 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
           properties: [], // Las propiedades se llenan luego con getPropertyUpgrades
           isInJail: p.isInJail,
           jailTurns: p.jailTurns ?? 0,
-          getOutOfJailCards: p.getOutOfJailCards ?? 0
+          getOutOfJailCards: p.getOutOfJailCards ?? 0,
+          eliminated: false
         }));
 
         setPlayersInGame(mappedPlayers);
@@ -1033,6 +1052,10 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
               connectionRef.current?.invoke("BroadcastRentPaid", gameId, currentPlayer, propertyOwner.id, rentAmount, fromMoneyAfterRent, toMoneyAfterRent).catch(() => {});
 
               if (fromMoneyAfterRent <= 0) {
+                // Mark as eliminated when bankrupt from rent
+                setPlayersInGame((prev) =>
+                  prev.map((pl) => pl.id === currentPlayer ? { ...pl, eliminated: true } : pl)
+                );
                 toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
               } else {
                 toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
@@ -1090,10 +1113,6 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
     const newMoneyAfterPurchase = currentPlayerData.money - (property.precio || 0);
 
     toast.success(`✅ Compraste ${property.nombre} por ${property.precio} pts`);
-
-    if (newMoneyAfterPurchase <= 0) {
-      toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
-    }
 
     boardProperties[propertyId].dueno = currentPlayerData.name;
 
@@ -1351,26 +1370,33 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
 
   const endTurn = () => {
     setTimeout(() => {
-      const activePlayers = playersInGame.filter((p) => p.money > 0).map((p) => p.id);
+      // Use ref to get CURRENT players state (avoids stale closure bug)
+      const currentPlayers = playersRef.current;
+      const activePlayers = currentPlayers.filter((p) => !p.eliminated);
+      const activeIds = activePlayers.map((p) => p.id);
 
-      if (activePlayers.length === 0) {
+      if (activeIds.length === 0) {
         toast.error("No hay jugadores activos en la partida");
         return;
       }
 
-      if (activePlayers.length === 1) {
-        toast.success(`🏆 ¡${playersInGame.find((p) => p.id === activePlayers[0])?.name} ganó la partida!`);
-        setCurrentPlayer(activePlayers[0]);
+      if (activeIds.length === 1) {
+        const winner = activePlayers[0];
+        setGameOver(true);
+        setGameWinner({ id: winner.id, name: winner.name, reason: 'bancarrota' });
+        setCurrentPlayer(winner.id);
+        // Sync stats to backend
+        apiService.endGame(gameId, winner.id).catch((err) => console.warn("EndGame API:", err));
         return;
       }
 
-      const currentIndex = activePlayers.indexOf(currentPlayer);
+      const currentIndex = activeIds.indexOf(currentPlayer);
       let nextPlayer: number;
 
-      if (currentIndex === -1 || currentIndex === activePlayers.length - 1) {
-        nextPlayer = activePlayers[0];
+      if (currentIndex === -1 || currentIndex === activeIds.length - 1) {
+        nextPlayer = activeIds[0];
       } else {
-        nextPlayer = activePlayers[currentIndex + 1];
+        nextPlayer = activeIds[currentIndex + 1];
       }
 
       setCurrentPlayer(nextPlayer);
@@ -1441,6 +1467,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       if (playerAfter) {
         connectionRef.current?.invoke("BroadcastCasinoResult", gameId, currentPlayer, playerAfter.money).catch(() => {});
         if (playerAfter.money <= 0) {
+          setPlayersInGame((p) => p.map((pl) => pl.id === currentPlayer ? { ...pl, eliminated: true } : pl));
           toast.error(`💥 ¡${playerAfter.name} ha quedado en bancarrota!`);
         }
       }
@@ -1464,6 +1491,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       if (playerAfter) {
         connectionRef.current?.invoke("BroadcastCasinoResult", gameId, currentPlayer, playerAfter.money).catch(() => {});
         if (playerAfter.money <= 0) {
+          setPlayersInGame((p) => p.map((pl) => pl.id === currentPlayer ? { ...pl, eliminated: true } : pl));
           toast.error(`💥 ¡${playerAfter.name} ha quedado en bancarrota!`);
         }
       }
@@ -1530,7 +1558,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
               <p className={`text-sm font-medium ${isMyTurn ? 'text-green-400' : 'text-amber-400'}`}>
                 {isMyTurn 
                   ? '🎯 ¡Tu turno!' 
-                  : `⏳ Turno de ${playersInGame.find((p) => p.id === currentPlayer && p.money > 0)?.name || 'Jugador eliminado'}`
+                  : `⏳ Turno de ${playersInGame.find((p) => p.id === currentPlayer)?.name || 'Otro jugador'}`
                 }
               </p>
             </div>
@@ -1639,7 +1667,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
             const offsetX = (idx % 2) * 10 - 5;
             const offsetY = Math.floor(idx / 2) * 10 - 5;
 
-            if (player.money <= 0) {
+            if (player.eliminated) {
               return null;
             }
 
@@ -1655,7 +1683,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
                 <div
                   className={`w-4 h-4 rounded-full ${player.color} border border-white shadow-md flex items-center justify-center hover:cursor-pointer hover:scale-125 transition-transform`}
                   title={player.name}
-                  onClick={() => onNavigate?.("inventory")}
+                  onClick={() => setSelectedPlayerForProperties(player.id)}
                 >
                   <span className="text-white text-[9px] font-bold">{player.name.charAt(0)}</span>
                 </div>
@@ -1670,7 +1698,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
         {/* Jugadores */}
         <div className="grid grid-cols-4 gap-2">
           {playersInGame.map((p) => {
-            const isActive = p.money > 0;
+            const isActive = !p.eliminated;
             return (
               <div
                 key={p.id}
@@ -1841,11 +1869,75 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       <TradeModal
         isOpen={showTradeModal}
         fromPlayer={playersInGame.find((p) => p.id === currentPlayer) ?? playersInGame[0]}
-        players={playersInGame.filter((p) => p.id !== currentPlayer && p.money > 0)}
+        players={playersInGame.filter((p) => p.id !== currentPlayer && !p.eliminated)}
         boardProperties={boardProperties}
         onClose={() => setShowTradeModal(false)}
         onSubmit={handleTrade}
       />
+
+      {/* Incoming trade offer popup */}
+      <IncomingTradeOffer
+        isOpen={incomingOffer !== null}
+        fromPlayerName={incomingOffer?.fromPlayerName ?? ''}
+        propertyName={incomingOffer?.propertyName ?? ''}
+        cashOffer={incomingOffer?.cashOffer ?? 0}
+        onAccept={() => {
+          if (!incomingOffer) return;
+          // Accept: transfer property to offeror and receive cash
+          setPlayersInGame((prev) => {
+            const propId = incomingOffer.propertyId;
+            return prev.map((player) => {
+              if (player.id === currentUser.id) {
+                return {
+                  ...player,
+                  money: player.money + incomingOffer.cashOffer,
+                  properties: player.properties.filter((pp) => pp.propertyId !== propId),
+                };
+              }
+              if (player.id === incomingOffer.fromPlayerId) {
+                const prop = boardProperties[propId];
+                return {
+                  ...player,
+                  money: player.money - incomingOffer.cashOffer,
+                  properties: [...player.properties, { propertyId: propId, propertyDbId: prop?.propertyDbId, level: 0 }],
+                };
+              }
+              return player;
+            });
+          });
+          toast.success(`✅ Aceptaste la oferta de ${incomingOffer.fromPlayerName}`);
+          setIncomingOffer(null);
+        }}
+        onReject={() => {
+          toast.info(`❌ Rechazaste la oferta de ${incomingOffer?.fromPlayerName}`);
+          setIncomingOffer(null);
+        }}
+      />
+
+      {/* Game Over popup */}
+      {gameOver && gameWinner && (
+        <div className="fixed inset-0 flex items-center justify-center z-[70]">
+          <div className="absolute inset-0 bg-black/80" />
+          <div className="relative z-10 w-[90vw] max-w-md rounded-3xl border-2 border-amber-500/60 bg-gradient-to-b from-zinc-900 to-zinc-950 shadow-2xl p-8 text-center">
+            <div className="text-6xl mb-4 animate-bounce">🏆</div>
+            <h2 className="text-3xl font-black text-amber-300 mb-2">¡Partida finalizada!</h2>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+              <p className="text-white/80 text-sm mb-1">El ganador es</p>
+              <p className="text-amber-400 text-2xl font-bold">{gameWinner.name}</p>
+              <p className="text-white/60 text-xs mt-1">
+                {gameWinner.reason === 'bancarrota' ? 'Último jugador en pie' : 
+                 gameWinner.reason === 'incomparecencia' ? 'Victoria por abandono' : 'Victoria'}
+              </p>
+            </div>
+            <Button
+              onClick={() => onNavigate?.("menu")}
+              className="w-full bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white py-4 text-lg font-bold rounded-xl"
+            >
+              Volver al Menú
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

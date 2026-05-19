@@ -1,603 +1,325 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Separator } from './ui/separator';
-import { Switch } from './ui/switch';
-import { 
-  User, 
-  Trophy, 
-  Clock, 
-  Coins, 
-  Gamepad2, 
-  Target, 
-  Crown,
-  LogOut,
-  Settings,
+import {
+  User,
   Edit,
-  ArrowLeft,
-  Save,
-  History,
-  Award,
+  Trophy,
+  Coins,
+  Clock,
   TrendingUp,
-  Bell,
+  Award,
+  Flame,
   Shield,
-  Lock,
-  Trash2
+  Check,
+  X,
+  Lock
 } from 'lucide-react';
-import type { User as UserType } from '../src/services/apiService';
+import { apiService, type User as UserType, type Achievement } from '../src/services/apiService';
+import { toast } from 'sonner';
 
 interface ProfileScreenProps {
-  user: UserType;
-  onLogout: () => void;
+  currentUser: UserType;
+  onUserUpdate?: (user: UserType) => void;
 }
 
-type ProfileView = 'main' | 'edit' | 'achievements' | 'history' | 'stats' | 'settings';
+export function ProfileScreen({ currentUser, onUserUpdate }: ProfileScreenProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editUsername, setEditUsername] = useState(currentUser.username);
+  const [editEmail, setEditEmail] = useState(currentUser.email);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
-export function ProfileScreen({ user, onLogout }: ProfileScreenProps) {
-  const [currentView, setCurrentView] = useState<ProfileView>('main');
-  const [editedUsername, setEditedUsername] = useState(user.username);
+  useEffect(() => {
+    apiService.getAchievements(currentUser.id)
+      .then(setAchievements)
+      .catch(() => setAchievements([]));
+  }, [currentUser.id]);
 
-  const stats = [
-    {
-      label: 'Partidas Jugadas',
-      value: user.gamesPlayed.toString(),
-      icon: Gamepad2,
-      color: 'text-blue-400'
-    },
-    {
-      label: 'Victorias',
-      value: user.gamesWon.toString(),
-      icon: Trophy,
-      color: 'text-yellow-400'
-    },
-    {
-      label: 'Dinero Total',
-      value: `${user.totalMoney.toLocaleString()} pts`,
-      icon: Coins,
-      color: 'text-green-400'
-    },
-    {
-      label: 'Tiempo Jugado',
-      value: `${user.timePlayedHours}h`,
-      icon: Clock,
-      color: 'text-purple-400'
-    },
-    {
-      label: 'Ratio Victoria',
-      value: `${Math.round((user.gamesWon / user.gamesPlayed) * 100)}%`,
-      icon: Target,
-      color: 'text-red-400'
-    },
-    {
-      label: 'Nivel Actual',
-      value: user.level,
-      icon: Crown,
-      color: 'text-amber-400'
+  const handleSaveProfile = async () => {
+    try {
+      const updated = await apiService.updateUser(currentUser.id, {
+        ...currentUser,
+        username: editUsername,
+        email: editEmail
+      });
+      onUserUpdate?.(updated);
+      setIsEditing(false);
+      toast.success('Perfil actualizado correctamente');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al actualizar';
+      toast.error(msg);
     }
-  ];
+  };
 
-  const achievements = [
-    { name: 'Primera Victoria', description: 'Gana tu primera partida', earned: true, icon: '🏆', pts: 100 },
-    { name: 'Millonario', description: 'Acumula 10,000 pts', earned: true, icon: '💰', pts: 500 },
-    { name: 'Veterano', description: 'Juega 50 partidas', earned: false, icon: '⚔️', pts: 300 },
-    { name: 'Maestro Casino', description: 'Gana 100 pts en casino', earned: true, icon: '🎰', pts: 200 },
-    { name: 'Racha Ganadora', description: 'Gana 5 partidas seguidas', earned: false, icon: '🔥', pts: 400 },
-    { name: 'Rey del Tablero', description: 'Completa 100 vueltas', earned: false, icon: '👑', pts: 1000 },
-    { name: 'Coleccionista', description: 'Consigue todos los avatares', earned: false, icon: '🎨', pts: 800 },
-    { name: 'Invencible', description: 'Gana 10 partidas sin perder', earned: false, icon: '⭐', pts: 1500 }
-  ];
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      await apiService.changePassword(currentUser.id, currentPassword, newPassword);
+      toast.success('Contraseña actualizada correctamente');
+      setShowPasswordModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cambiar contraseña';
+      toast.error(msg);
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
-  const gameHistory = [
-    { date: '22/10/2025 - 14:30', result: 'Victoria', pts: '+850', opponent: 'Ana García' },
-    { date: '22/10/2025 - 12:15', result: 'Derrota', pts: '-320', opponent: 'Carlos Ruiz' },
-    { date: '21/10/2025 - 19:45', result: 'Victoria', pts: '+1200', opponent: 'María López' },
-    { date: '21/10/2025 - 17:20', result: 'Victoria', pts: '+950', opponent: 'Pedro Sánchez' },
-    { date: '20/10/2025 - 21:00', result: 'Derrota', pts: '-450', opponent: 'Laura Martín' },
-    { date: '20/10/2025 - 16:30', result: 'Victoria', pts: '+700', opponent: 'Jorge Díaz' }
-  ];
+  const winRate = currentUser.gamesPlayed > 0 ? Math.round((currentUser.gamesWon / currentUser.gamesPlayed) * 100) : 0;
+  const earnedAchievements = achievements.filter(a => a.earned);
 
-  // Vista de Edición de Perfil
-  if (currentView === 'edit') {
-    return (
-      <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setCurrentView('main')}
-            className="text-white hover:text-amber-400"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Volver
-          </Button>
-          <h2 className="text-white text-xl">Editar Perfil</h2>
-          <div className="w-20" />
-        </div>
-
-        <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-          <CardContent className="p-6 space-y-6">
-            {/* Avatar */}
-            <div className="flex flex-col items-center space-y-3">
-              <Avatar className="w-24 h-24 border-4 border-amber-400">
-                <AvatarImage src={user.avatar} alt={user.username} />
-                <AvatarFallback className="bg-gradient-to-br from-amber-400 to-red-600 text-white text-2xl">
-                  {user.username.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-300 hover:bg-amber-500/20">
-                Cambiar Avatar
-              </Button>
-            </div>
-
-            <Separator className="bg-amber-500/20" />
-
-            {/* Nombre de Usuario */}
-            <div className="space-y-2">
-              <label className="text-white/60 text-sm">Nombre de Usuario</label>
-              <Input
-                value={editedUsername}
-                onChange={(e) => setEditedUsername(e.target.value)}
-                className="bg-white/10 border-amber-500/30 text-white placeholder:text-white/60 focus:border-amber-400"
-              />
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <label className="text-white/60 text-sm">Email</label>
-              <Input
-                type="email"
-                defaultValue="raul@casinoytapas.com"
-                className="bg-white/10 border-amber-500/30 text-white placeholder:text-white/60 focus:border-amber-400"
-              />
-            </div>
-
-            <Button 
-              className="w-full bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white"
-              onClick={() => {
-                alert('Perfil actualizado correctamente');
-                setCurrentView('main');
-              }}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Guardar Cambios
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Vista de Logros
-  if (currentView === 'achievements') {
-    return (
-      <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setCurrentView('main')}
-            className="text-white hover:text-amber-400"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Volver
-          </Button>
-          <h2 className="text-white text-xl">Mis Logros</h2>
-          <div className="w-20" />
-        </div>
-
-        <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-white flex items-center space-x-2">
-                <Trophy className="w-5 h-5 text-amber-400" />
-                <span>Logros Desbloqueados</span>
-              </CardTitle>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                {achievements.filter(a => a.earned).length}/{achievements.length}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {achievements.map((achievement, index) => (
-              <div 
-                key={index} 
-                className={`flex items-center space-x-3 p-4 rounded-lg border ${
-                  achievement.earned 
-                    ? 'bg-amber-500/20 border-amber-400/50' 
-                    : 'bg-black/20 border-white/10'
-                }`}
-              >
-                <div className={`text-3xl ${achievement.earned ? '' : 'grayscale opacity-50'}`}>
-                  {achievement.icon}
-                </div>
-                <div className="flex-1">
-                  <h4 className={`${achievement.earned ? 'text-white' : 'text-gray-400'}`}>
-                    {achievement.name}
-                  </h4>
-                  <p className={`text-xs ${achievement.earned ? 'text-amber-200' : 'text-gray-500'}`}>
-                    {achievement.description}
-                  </p>
-                  <div className="flex items-center space-x-1 mt-1">
-                    <Coins className={`w-3 h-3 ${achievement.earned ? 'text-green-400' : 'text-gray-500'}`} />
-                    <span className={`text-xs ${achievement.earned ? 'text-green-400' : 'text-gray-500'}`}>
-                      +{achievement.pts} pts
-                    </span>
-                  </div>
-                </div>
-                {achievement.earned && (
-                  <Badge className="bg-green-500 text-white text-xs">
-                    ✓
-                  </Badge>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Vista de Historial
-  if (currentView === 'history') {
-    return (
-      <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setCurrentView('main')}
-            className="text-white hover:text-amber-400"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Volver
-          </Button>
-          <h2 className="text-white text-xl">Historial</h2>
-          <div className="w-20" />
-        </div>
-
-        <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center space-x-2">
-              <History className="w-5 h-5 text-amber-400" />
-              <span>Partidas Recientes</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {gameHistory.map((game, index) => (
-              <div 
-                key={index} 
-                className={`p-4 rounded-lg border ${
-                  game.result === 'Victoria' 
-                    ? 'bg-green-500/10 border-green-500/30' 
-                    : 'bg-red-500/10 border-red-500/30'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white/60 text-xs">{game.date}</span>
-                  <Badge className={
-                    game.result === 'Victoria'
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                      : 'bg-red-500/20 text-red-400 border-red-500/30'
-                  }>
-                    {game.result}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white">vs {game.opponent}</span>
-                  <span className={game.result === 'Victoria' ? 'text-green-400' : 'text-red-400'}>
-                    {game.pts} pts
-                  </span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-
-
-  // Vista de Configuración del Perfil
-  if (currentView === 'settings') {
-    return (
-      <div className="flex flex-col h-full p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setCurrentView('main')}
-            className="text-white hover:text-amber-400"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Volver
-          </Button>
-          <h2 className="text-white text-xl">Configuración del Perfil</h2>
-          <div className="w-20" />
-        </div>
-
-        <div className="space-y-4">
-          {/* Notificaciones del Perfil */}
-          <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center space-x-2">
-                <Bell className="w-5 h-5 text-amber-400" />
-                <span>Notificaciones del Perfil</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Trophy className="w-5 h-5 text-amber-400" />
-                  <div>
-                    <p className="text-white text-sm">Nuevos Logros</p>
-                    <p className="text-white/60 text-xs">Te avisamos cuando consigas logros</p>
-                  </div>
-                </div>
-                <Switch
-                  defaultChecked
-                  className="data-[state=checked]:bg-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Crown className="w-5 h-5 text-amber-400" />
-                  <div>
-                    <p className="text-white text-sm">Subidas de Nivel</p>
-                    <p className="text-white/60 text-xs">Notificación al subir de nivel</p>
-                  </div>
-                </div>
-                <Switch
-                  defaultChecked
-                  className="data-[state=checked]:bg-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Award className="w-5 h-5 text-amber-400" />
-                  <div>
-                    <p className="text-white text-sm">Posición en Ranking</p>
-                    <p className="text-white/60 text-xs">Cambios en tu posición del ranking</p>
-                  </div>
-                </div>
-                <Switch
-                  className="data-[state=checked]:bg-amber-500"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Seguridad de la Cuenta */}
-          <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center space-x-2">
-                <Shield className="w-5 h-5 text-amber-400" />
-                <span>Seguridad de la Cuenta</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <button className="w-full flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <Lock className="w-5 h-5 text-amber-400" />
-                  <div className="text-left">
-                    <p className="text-white text-sm">Cambiar Contraseña</p>
-                    <p className="text-white/60 text-xs">Actualiza tu contraseña de acceso</p>
-                  </div>
-                </div>
-                <ArrowLeft className="w-4 h-4 text-amber-400 rotate-180" />
-              </button>
-
-              <button className="w-full flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <Shield className="w-5 h-5 text-amber-400" />
-                  <div className="text-left">
-                    <p className="text-white text-sm">Verificación en Dos Pasos</p>
-                    <p className="text-white/60 text-xs">Protege tu cuenta con 2FA</p>
-                  </div>
-                </div>
-                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                  Activo
-                </Badge>
-              </button>
-            </CardContent>
-          </Card>
-
-          {/* Gestión de Datos */}
-          <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center space-x-2">
-                <User className="w-5 h-5 text-amber-400" />
-                <span>Gestión de Datos</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <button className="w-full flex items-center justify-between p-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors border border-red-500/30">
-                <div className="flex items-center space-x-3">
-                  <Trash2 className="w-5 h-5 text-red-400" />
-                  <div className="text-left">
-                    <p className="text-red-400 text-sm">Eliminar Mi Cuenta</p>
-                    <p className="text-red-300/60 text-xs">Acción permanente e irreversible</p>
-                  </div>
-                </div>
-                <ArrowLeft className="w-4 h-4 text-red-400 rotate-180" />
-              </button>
-            </CardContent>
-          </Card>
-
-          {/* Guardar Cambios */}
-          <Button 
-            className="w-full bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white py-6"
-            onClick={() => {
-              alert('Configuración guardada correctamente');
-              setCurrentView('main');
-            }}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Guardar Configuración
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Vista Principal
   return (
-    <div className="flex flex-col h-full p-4 space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full p-6 max-w-7xl mx-auto w-full overflow-y-auto">
       {/* Profile Header */}
-      <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-4 mb-4">
-            <Avatar className="w-20 h-20 border-4 border-amber-400">
-              <AvatarImage src={user.avatar} alt={user.username} />
-              <AvatarFallback className="bg-gradient-to-br from-amber-400 to-red-600 text-white text-2xl">
-                {user.username.charAt(0).toUpperCase()}
+      <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm mb-6">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-8">
+            <Avatar className="w-28 h-28 border-4 border-amber-400/50">
+              <AvatarImage src={currentUser.avatar} alt={currentUser.username} />
+              <AvatarFallback className="bg-gradient-to-br from-amber-400 to-red-600 text-white text-4xl">
+                {currentUser.username.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             
             <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-2">
-                <h2 className="text-white text-2xl">{user.username}</h2>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="text-amber-400 hover:bg-amber-500/20"
-                  onClick={() => setCurrentView('edit')}
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-              </div>
-              <Badge className="bg-gradient-to-r from-amber-400 to-red-500 text-black mb-2">
-                {user.level}
-              </Badge>
-              <p className="text-white/60 text-sm">
-                Miembro desde octubre 2025
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex space-x-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="flex-1 border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
-              onClick={() => setCurrentView('settings')}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Configuración
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="border-red-500/30 text-red-300 hover:bg-red-500/20"
-              onClick={onLogout}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Salir
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Estadísticas Detalladas */}
-      <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center space-x-2">
-            <TrendingUp className="w-5 h-5 text-amber-400" />
-            <span>Estadísticas</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* ELO */}
-          <div className="p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/60 text-sm">ELO Rating</p>
-                <p className="text-white text-2xl">{user.elo}</p>
-              </div>
-              <Crown className="w-8 h-8 text-purple-400" />
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {stats.map((stat, index) => {
-              const IconComponent = stat.icon;
-              return (
-                <div key={index} className="bg-black/40 rounded-lg p-4 border border-amber-500/20">
-                  <IconComponent className={`w-5 h-5 ${stat.color} mb-2`} />
-                  <p className="text-white text-lg">{stat.value}</p>
-                  <p className="text-white/60 text-xs">{stat.label}</p>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    className="bg-zinc-900 border border-amber-500/30 rounded-lg px-4 py-2 text-white text-xl w-full"
+                    placeholder="Nombre de usuario"
+                  />
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="bg-zinc-900 border border-amber-500/30 rounded-lg px-4 py-2 text-white w-full"
+                    placeholder="Email"
+                  />
+                  <div className="flex space-x-3">
+                    <Button size="sm" onClick={handleSaveProfile} className="bg-green-600 hover:bg-green-700 text-white">
+                      <Check className="w-4 h-4 mr-1" /> Guardar
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} className="border-red-500/50 text-red-400">
+                      <X className="w-4 h-4 mr-1" /> Cancelar
+                    </Button>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Racha Actual */}
-          <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-white">Racha Actual</span>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                🔥 5 victorias
-              </Badge>
-            </div>
-            <div className="w-full bg-black/40 rounded-full h-2">
-              <div className="bg-gradient-to-r from-amber-400 to-red-500 h-2 rounded-full" style={{ width: '80%' }}></div>
-            </div>
-          </div>
-
-          {/* Mejor Racha */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/30">
-              <p className="text-white/60 text-xs">Mejor Racha</p>
-              <p className="text-green-400 text-xl">12 victorias</p>
-            </div>
-            <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30">
-              <p className="text-white/60 text-xs">Mayor Ganancia</p>
-              <p className="text-blue-400 text-xl">2,500 pts</p>
+              ) : (
+                <div>
+                  <div className="flex items-center space-x-4 mb-2">
+                    <h2 className="text-white text-3xl font-bold">{currentUser.username}</h2>
+                    {currentUser.isAdmin && (
+                      <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                        <Shield className="w-3 h-3 mr-1" /> Admin
+                      </Badge>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditing(true)} className="text-amber-400 hover:text-amber-300">
+                      <Edit className="w-4 h-4 mr-1" /> Editar
+                    </Button>
+                  </div>
+                  <p className="text-amber-300/70 text-base">{currentUser.email}</p>
+                  <div className="flex items-center space-x-6 mt-3">
+                    <span className="text-amber-400 text-lg font-semibold flex items-center">
+                      <Trophy className="w-5 h-5 mr-2" /> ELO: {currentUser.elo}
+                    </span>
+                    <span className="text-green-400 text-lg font-semibold flex items-center">
+                      <Coins className="w-5 h-5 mr-2" /> {currentUser.totalMoney.toLocaleString()} pts
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Menu Options */}
-      <div className="space-y-2">
-        <Button 
-          variant="outline" 
-          className="w-full justify-start bg-black/40 border-amber-500/20 text-white hover:bg-amber-500/20"
-          onClick={() => setCurrentView('achievements')}
-        >
-          <Award className="w-5 h-5 mr-3 text-amber-400" />
-          Mis Logros
-        </Button>
-        
-        <Button 
-          variant="outline" 
-          className="w-full justify-start bg-black/40 border-amber-500/20 text-white hover:bg-amber-500/20"
-          onClick={() => setCurrentView('history')}
-        >
-          <History className="w-5 h-5 mr-3 text-blue-400" />
-          Historial de Partidas
-        </Button>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Card className="bg-black/40 border-amber-500/20">
+          <CardContent className="p-5 text-center">
+            <User className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-white text-2xl font-bold">{currentUser.gamesPlayed}</p>
+            <p className="text-white/60 text-sm">Partidas Jugadas</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/40 border-amber-500/20">
+          <CardContent className="p-5 text-center">
+            <Trophy className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+            <p className="text-white text-2xl font-bold">{currentUser.gamesWon}</p>
+            <p className="text-white/60 text-sm">Victorias</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/40 border-amber-500/20">
+          <CardContent className="p-5 text-center">
+            <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-white text-2xl font-bold">{winRate}%</p>
+            <p className="text-white/60 text-sm">Ratio Victoria</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-black/40 border-amber-500/20">
+          <CardContent className="p-5 text-center">
+            <Clock className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+            <p className="text-white text-2xl font-bold">{currentUser.timePlayedHours}h</p>
+            <p className="text-white/60 text-sm">Tiempo Jugado</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Progress to Next Level */}
-      <Card className="bg-black/60 border-amber-500/30 backdrop-blur-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white text-sm">Progreso al siguiente nivel</p>
-            <p className="text-amber-300 text-sm">75%</p>
-          </div>
-          <div className="w-full bg-black/40 rounded-full h-2">
-            <div className="bg-gradient-to-r from-amber-400 to-red-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-          </div>
-          <p className="text-white/60 text-xs mt-2">5 victorias más para "Casino Royale"</p>
+      {/* Streaks */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <Card className="bg-gradient-to-br from-orange-900/40 to-red-900/40 border-orange-500/30">
+          <CardContent className="p-5 flex items-center space-x-4">
+            <div className="w-14 h-14 bg-orange-500/20 rounded-full flex items-center justify-center">
+              <Flame className="w-7 h-7 text-orange-400" />
+            </div>
+            <div>
+              <p className="text-white text-2xl font-bold">{currentUser.currentStreak}</p>
+              <p className="text-orange-300/80 text-sm">Racha Actual</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-amber-900/40 to-yellow-900/40 border-amber-500/30">
+          <CardContent className="p-5 flex items-center space-x-4">
+            <div className="w-14 h-14 bg-amber-500/20 rounded-full flex items-center justify-center">
+              <Award className="w-7 h-7 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-white text-2xl font-bold">{currentUser.bestStreak}</p>
+              <p className="text-amber-300/80 text-sm">Mejor Racha</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Achievements Section */}
+      <Card className="bg-black/40 border-amber-500/20 mb-6">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center text-xl">
+            <Award className="w-6 h-6 mr-2 text-amber-400" />
+            Logros ({earnedAchievements.length}/{achievements.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {achievements.length === 0 ? (
+            <p className="text-white/40 text-center py-6">Cargando logros...</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {achievements.map((achievement) => (
+                <div 
+                  key={achievement.id} 
+                  className={`rounded-lg border p-4 flex items-center space-x-3 transition-all ${
+                    achievement.earned 
+                      ? 'bg-amber-500/10 border-amber-500/30 text-white' 
+                      : 'bg-black/30 border-white/10 text-white/40'
+                  }`}
+                >
+                  <span className="text-2xl">{achievement.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{achievement.name}</p>
+                    <p className="text-xs opacity-70 truncate">{achievement.description}</p>
+                    {achievement.earned && (
+                      <p className="text-xs text-green-400 mt-1">+{achievement.rewardPts} pts</p>
+                    )}
+                  </div>
+                  {achievement.earned && (
+                    <Check className="w-5 h-5 text-green-400 shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Security Section */}
+      <Card className="bg-black/40 border-amber-500/20">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center text-xl">
+            <Lock className="w-6 h-6 mr-2 text-red-400" />
+            Seguridad
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-white font-medium">Contraseña</p>
+              <p className="text-white/50 text-sm">Última actualización desconocida</p>
+            </div>
+            <Button 
+              variant="outline" 
+              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => setShowPasswordModal(true)}
+            >
+              Cambiar contraseña
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowPasswordModal(false)} />
+          <div className="relative z-10 w-full max-w-md bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 shadow-2xl">
+            <h3 className="text-white text-xl font-bold mb-4 flex items-center">
+              <Lock className="w-5 h-5 mr-2 text-amber-400" /> Cambiar Contraseña
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-white/70 text-sm block mb-1">Contraseña actual</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
+                  placeholder="••••••••"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm block mb-1">Nueva contraseña</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
+                  placeholder="Mínimo 8 caracteres"
+                />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <Button 
+                  onClick={handleChangePassword} 
+                  disabled={passwordLoading}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {passwordLoading ? 'Cambiando...' : 'Confirmar'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowPasswordModal(false)}
+                  className="border-zinc-600 text-zinc-300"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

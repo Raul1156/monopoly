@@ -218,7 +218,7 @@ export function SettingsScreen({ onNavigate, onLogout }: SettingsScreenProps) {
       },
       {
         title: 'Compras y Monedas',
-        description: 'Información sobre pesetas y gemas',
+        description: 'Información sobre pesetas y la tienda',
         icon: Info
       },
       {

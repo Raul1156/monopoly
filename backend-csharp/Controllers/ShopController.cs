@@ -74,11 +74,7 @@ public class ShopController : ControllerBase
 
     private static string MapCurrency(string? moneda)
     {
-        return moneda switch
-        {
-            "gemas" => "gems",
-            _ => "pts"
-        };
+        return "pts";
     }
 
     private static string MapShopCategory(string? categoria)

@@ -919,4 +919,228 @@ public class GameActionsController : ControllerBase
         await _mySql.SaveChangesAsync();
         return wallet;
     }
+
+    // === MORTGAGE ===
+
+    [HttpPost("mortgage")]
+    public async Task<ActionResult> Mortgage([FromBody] MortgageRequestDto dto)
+    {
+        try
+        {
+            var player = await _context.PlayersInGame
+                .Include(p => p.OwnedProperties)
+                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+            if (player == null) return NotFound("Player not found");
+
+            var ownership = player.OwnedProperties.FirstOrDefault(po => po.PropertyId == dto.PropertyId);
+            if (ownership == null) return BadRequest("Player does not own this property");
+            if (ownership.IsMortgaged) return BadRequest("Property is already mortgaged");
+
+            // Check no buildings in color group
+            var propiedad = await _mySql.Propiedades.Include(p => p.Casilla).FirstOrDefaultAsync(p => p.Id == dto.PropertyId);
+            if (propiedad == null) return NotFound("Property not found");
+
+            if (!string.IsNullOrWhiteSpace(propiedad.ColorGrupo))
+            {
+                var groupIds = await _mySql.Propiedades
+                    .Where(p => p.ColorGrupo == propiedad.ColorGrupo)
+                    .Select(p => p.Id).ToListAsync();
+
+                var hasBuildings = await _mySql.PropiedadesPartida
+                    .AnyAsync(pp => pp.PartidaId == dto.GameId && groupIds.Contains(pp.PropiedadId) && pp.Nivel > 0);
+
+                if (hasBuildings) return BadRequest("Debes vender los edificios del grupo antes de hipotecar");
+            }
+
+            ownership.IsMortgaged = true;
+            var mortgageValue = propiedad.Precio / 2;
+            player.Money += mortgageValue;
+
+            var wallet = await GetOrCreatePartidaUsuario(dto.GameId, player.UserId, player.Money);
+            wallet.DineroActual = player.Money;
+
+            await _context.SaveChangesAsync();
+            await _mySql.SaveChangesAsync();
+
+            await _hubContext.Clients.Group(GameHub.GetGameGroup(dto.GameId))
+                .SendAsync("PropertyMortgaged", new { propertyId = dto.PropertyId, playerId = dto.PlayerId, money = player.Money });
+
+            return Ok(new { message = $"Propiedad hipotecada. Recibiste ${mortgageValue}", moneyLeft = player.Money });
+        }
+        catch (Exception ex) { return BadRequest(ex.Message); }
+    }
+
+    [HttpPost("unmortgage")]
+    public async Task<ActionResult> Unmortgage([FromBody] MortgageRequestDto dto)
+    {
+        try
+        {
+            var player = await _context.PlayersInGame
+                .Include(p => p.OwnedProperties)
+                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+            if (player == null) return NotFound("Player not found");
+
+            var ownership = player.OwnedProperties.FirstOrDefault(po => po.PropertyId == dto.PropertyId);
+            if (ownership == null) return BadRequest("Player does not own this property");
+            if (!ownership.IsMortgaged) return BadRequest("Property is not mortgaged");
+
+            var propiedad = await _mySql.Propiedades.FirstOrDefaultAsync(p => p.Id == dto.PropertyId);
+            if (propiedad == null) return NotFound("Property not found");
+
+            var mortgageValue = propiedad.Precio / 2;
+            var interest = (int)Math.Ceiling(mortgageValue * 0.10m);
+            var cost = mortgageValue + interest;
+
+            if (player.Money < cost) return BadRequest($"No tienes suficiente dinero. Costo: ${cost}");
+
+            ownership.IsMortgaged = false;
+            player.Money -= cost;
+
+            var wallet = await GetOrCreatePartidaUsuario(dto.GameId, player.UserId, player.Money);
+            wallet.DineroActual = player.Money;
+
+            await _context.SaveChangesAsync();
+            await _mySql.SaveChangesAsync();
+
+            await _hubContext.Clients.Group(GameHub.GetGameGroup(dto.GameId))
+                .SendAsync("PropertyUnmortgaged", new { propertyId = dto.PropertyId, playerId = dto.PlayerId, money = player.Money });
+
+            return Ok(new { message = $"Hipoteca levantada. Pagaste ${cost}", moneyLeft = player.Money });
+        }
+        catch (Exception ex) { return BadRequest(ex.Message); }
+    }
+
+    // === END GAME (ELO + Stats) ===
+
+    [HttpPost("end-game")]
+    public async Task<ActionResult> EndGame([FromQuery] int gameId)
+    {
+        try
+        {
+            var partida = await _mySql.Partidas
+                .Include(p => p.Jugadores)
+                .FirstOrDefaultAsync(p => p.Id == gameId);
+
+            if (partida == null) return NotFound("Game not found");
+            if (partida.Estado == "finalizada") return BadRequest("Game already finished");
+
+            var jugadores = partida.Jugadores.OrderByDescending(j => j.Activo).ThenByDescending(j => j.DineroActual).ToList();
+            var totalPlayers = jugadores.Count;
+
+            // Assign final positions (1 = winner, highest number = first eliminated)
+            int position = 1;
+            foreach (var j in jugadores)
+            {
+                j.PosicionFinal = position;
+                position++;
+            }
+
+            // Calculate ELO deltas based on player count and position
+            var eloDeltas = GetEloDeltas(totalPlayers);
+
+            foreach (var j in jugadores)
+            {
+                var pos = j.PosicionFinal ?? totalPlayers;
+                var delta = pos <= eloDeltas.Length ? eloDeltas[pos - 1] : eloDeltas[^1];
+                j.EloGanado = delta;
+
+                var user = await _mySql.Usuarios.FirstOrDefaultAsync(u => u.Id == j.UsuarioId);
+                if (user != null)
+                {
+                    user.Elo = Math.Max(0, user.Elo + delta);
+                    user.PartidasJugadas++;
+
+                    // Calculate time played
+                    if (partida.FechaInicio != default)
+                    {
+                        var duration = (DateTime.UtcNow - partida.FechaInicio).TotalMinutes;
+                        user.TiempoJugadoMinutos += (int)Math.Round(duration);
+                    }
+
+                    if (pos == 1)
+                    {
+                        user.PartidasGanadas++;
+                        user.RachaActual++;
+                        if (user.RachaActual > user.MejorRacha)
+                            user.MejorRacha = user.RachaActual;
+                    }
+                    else
+                    {
+                        user.RachaActual = 0;
+                    }
+
+                    user.ActualizadoEn = DateTime.UtcNow;
+
+                    // Check and unlock achievements
+                    await CheckAndUnlockAchievements(user);
+                }
+            }
+
+            var winnerId = jugadores.FirstOrDefault()?.UsuarioId;
+            partida.Estado = "finalizada";
+            partida.GanadorId = winnerId;
+            partida.FechaFin = DateTime.UtcNow;
+
+            await _mySql.SaveChangesAsync();
+
+            await _hubContext.Clients.Group(GameHub.GetGameGroup(gameId))
+                .SendAsync("GameEnded", new
+                {
+                    gameId,
+                    winnerId,
+                    results = jugadores.Select(j => new { j.UsuarioId, j.PosicionFinal, j.EloGanado })
+                });
+
+            return Ok(new { message = "Partida finalizada", winnerId });
+        }
+        catch (Exception ex) { return BadRequest(ex.Message); }
+    }
+
+    private static int[] GetEloDeltas(int totalPlayers)
+    {
+        return totalPlayers switch
+        {
+            4 => new[] { 20, 10, -10, -20 },
+            3 => new[] { 20, 0, -20 },
+            _ => new[] { 20, -20 }
+        };
+    }
+
+    private async Task CheckAndUnlockAchievements(Data.MySqlEntities.UsuarioEntity user)
+    {
+        var logros = await _mySql.Logros.AsNoTracking().ToListAsync();
+        var existing = await _mySql.UsuarioLogros
+            .Where(ul => ul.UsuarioId == user.Id)
+            .Select(ul => ul.LogroId)
+            .ToListAsync();
+
+        foreach (var logro in logros)
+        {
+            if (existing.Contains(logro.Id)) continue;
+
+            bool earned = logro.Condicion switch
+            {
+                "primera_victoria" => user.PartidasGanadas >= 1,
+                "millonario" => user.MonedaLobby >= logro.ValorObjetivo,
+                "veterano" => user.PartidasJugadas >= logro.ValorObjetivo,
+                "racha_5" => user.MejorRacha >= 5,
+                "racha_10" => user.MejorRacha >= 10,
+                "maestro_casino" => user.MonedaLobby >= 100,
+                _ => false
+            };
+
+            if (earned)
+            {
+                _mySql.UsuarioLogros.Add(new Data.MySqlEntities.UsuarioLogroEntity
+                {
+                    UsuarioId = user.Id,
+                    LogroId = logro.Id,
+                    DesbloqueadoEn = DateTime.UtcNow
+                });
+
+                // Give reward
+                user.MonedaLobby += logro.RecompensaPts;
+            }
+        }
+    }
 }

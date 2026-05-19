@@ -20,13 +20,14 @@ public class UserDto
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Avatar { get; set; } = string.Empty;
-    public string Level { get; set; } = string.Empty;
     public int GamesPlayed { get; set; }
     public int GamesWon { get; set; }
     public int TotalMoney { get; set; }
-    public int Gems { get; set; }
     public double TimePlayedHours { get; set; }
     public int Elo { get; set; }
+    public int CurrentStreak { get; set; }
+    public int BestStreak { get; set; }
+    public bool IsAdmin { get; set; }
 }
 
 public class BoardSpaceDto
@@ -172,4 +173,71 @@ public class InventoryItemDto
     public string Preview { get; set; } = string.Empty;
     public bool Equipped { get; set; }
     public int Quantity { get; set; }
+}
+
+// === Mortgage DTOs ===
+public class MortgageRequestDto
+{
+    public int GameId { get; set; }
+    public int PlayerId { get; set; }
+    public int PropertyId { get; set; }
+}
+
+// === Change Password DTO ===
+public class ChangePasswordDto
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}
+
+// === Achievement DTOs ===
+public class AchievementDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+    public int RewardPts { get; set; }
+    public bool Earned { get; set; }
+    public DateTime? EarnedAt { get; set; }
+}
+
+// === Daily Events DTOs ===
+public class DailyRewardDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public int MoneyReward { get; set; }
+    public bool Claimed { get; set; }
+}
+
+// === Trade Offer DTOs (bilateral) ===
+public class TradeOfferDto
+{
+    public int GameId { get; set; }
+    public int FromPlayerId { get; set; }
+    public int ToPlayerId { get; set; }
+    public int CashFrom { get; set; }
+    public int CashTo { get; set; }
+    public List<TradePropertyDto> PropertiesFrom { get; set; } = new();
+    public List<TradePropertyDto> PropertiesTo { get; set; } = new();
+}
+
+public class TradeOfferResponseDto
+{
+    public int GameId { get; set; }
+    public int FromPlayerId { get; set; }
+    public bool Accepted { get; set; }
+}
+
+// === Admin DTOs ===
+public class AdminStatsDto
+{
+    public int TotalUsers { get; set; }
+    public int ActiveUsers { get; set; }
+    public int TotalGames { get; set; }
+    public int ActiveGames { get; set; }
+    public int BannedUsers { get; set; }
 }

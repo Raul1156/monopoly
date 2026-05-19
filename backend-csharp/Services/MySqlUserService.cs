@@ -36,6 +36,9 @@ public class MySqlUserService : IUserService
         if (user == null)
             return null;
 
+        if (!user.Activo)
+            throw new Exception("Tu cuenta ha sido suspendida");
+
         var stored = user.PasswordHash ?? string.Empty;
         if (string.IsNullOrWhiteSpace(stored))
             return null;
@@ -100,6 +103,11 @@ public class MySqlUserService : IUserService
             PartidasJugadas = 0,
             PartidasGanadas = 0,
             Activo = true,
+            TiempoJugadoMinutos = 0,
+            RachaActual = 0,
+            MejorRacha = 0,
+            EsAdmin = false,
+            TwoFactorEnabled = false,
             UltimoLogin = DateTime.UtcNow,
             CreadoEn = DateTime.UtcNow,
             ActualizadoEn = DateTime.UtcNow
@@ -136,13 +144,60 @@ public class MySqlUserService : IUserService
         if (user == null)
             throw new Exception("User not found");
 
+        // Update avatar if provided
         if (!string.IsNullOrWhiteSpace(userDto.Avatar))
             user.Avatar = userDto.Avatar;
+
+        // Update username if provided and different
+        if (!string.IsNullOrWhiteSpace(userDto.Username) && userDto.Username != user.Username)
+        {
+            var exists = await _mySql.Usuarios.AnyAsync(u => u.Username == userDto.Username && u.Id != id);
+            if (exists) throw new Exception("El nombre de usuario ya está en uso");
+            user.Username = userDto.Username;
+        }
+
+        // Update email if provided and different
+        if (!string.IsNullOrWhiteSpace(userDto.Email) && userDto.Email != user.Email)
+        {
+            var exists = await _mySql.Usuarios.AnyAsync(u => u.Email == userDto.Email && u.Id != id);
+            if (exists) throw new Exception("El email ya está en uso");
+            user.Email = userDto.Email;
+        }
 
         user.ActualizadoEn = DateTime.UtcNow;
         await _mySql.SaveChangesAsync();
 
         return MapToDto(user);
+    }
+
+    public async Task ChangePassword(int id, string currentPassword, string newPassword)
+    {
+        var user = await _mySql.Usuarios.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null)
+            throw new Exception("User not found");
+
+        var stored = user.PasswordHash ?? string.Empty;
+        bool isValid;
+        try
+        {
+            isValid = stored.StartsWith("$2", StringComparison.Ordinal)
+                ? BCrypt.Net.BCrypt.Verify(currentPassword, stored)
+                : currentPassword == stored;
+        }
+        catch
+        {
+            throw new Exception("Error al verificar la contraseña actual");
+        }
+
+        if (!isValid)
+            throw new Exception("La contraseña actual es incorrecta");
+
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+            throw new Exception("La nueva contraseña debe tener al menos 8 caracteres");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.ActualizadoEn = DateTime.UtcNow;
+        await _mySql.SaveChangesAsync();
     }
 
     private static UserDto MapToDto(UsuarioEntity user)
@@ -153,13 +208,14 @@ public class MySqlUserService : IUserService
             Username = user.Username,
             Email = user.Email,
             Avatar = NormalizeAvatar(user.Avatar, user.Username),
-            Level = $"Nivel {user.Nivel}",
             GamesPlayed = user.PartidasJugadas,
             GamesWon = user.PartidasGanadas,
             TotalMoney = user.MonedaLobby,
-            Gems = user.Gemas,
-            TimePlayedHours = 0,
-            Elo = user.Elo
+            TimePlayedHours = Math.Round(user.TiempoJugadoMinutos / 60.0, 1),
+            Elo = user.Elo,
+            CurrentStreak = user.RachaActual,
+            BestStreak = user.MejorRacha,
+            IsAdmin = user.EsAdmin
         };
     }
 

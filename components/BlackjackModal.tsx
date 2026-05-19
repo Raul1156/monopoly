@@ -295,7 +295,7 @@ export function BlackjackModal({
 
     return (
       <div
-        className="relative flex h-32 w-24 flex-col justify-between rounded-xl border border-emerald-600/40 bg-gradient-to-b from-zinc-50 to-zinc-200 p-2 text-zinc-900 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
+        className="relative flex h-32 w-24 flex-col justify-between rounded-xl border border-amber-600/40 bg-gradient-to-b from-zinc-50 to-zinc-200 p-2 text-zinc-900 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
       >
         <div className="flex flex-col">
           <span className={`text-sm font-bold leading-none ${suitClass}`}>{card.rank}</span>
@@ -318,20 +318,20 @@ export function BlackjackModal({
       <div className="absolute inset-0" onClick={() => canClose && onClose()} />
 
       <div
-        className="relative w-full max-w-5xl rounded-3xl border border-emerald-600/50 bg-[radial-gradient(circle_at_top,#064e3b_0%,#022c22_45%,#020617_100%)] px-6 py-8 shadow-2xl"
+        className="relative w-full max-w-5xl rounded-3xl border border-amber-600/50 bg-[radial-gradient(circle_at_top,#4a1c1c_0%,#1a0a0a_45%,#020617_100%)] px-6 py-8 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-extrabold text-emerald-400 tracking-wide">{casinoName}</h2>
+            <h2 className="text-3xl font-extrabold text-amber-400 tracking-wide">{casinoName}</h2>
             <p className="text-zinc-300 text-sm">Blackjack para {playerName}</p>
-            <p className="text-[11px] text-emerald-200">Mano {Math.min(handsPlayed + 1, 5)} / 5</p>
+            <p className="text-[11px] text-amber-200">Mano {Math.min(handsPlayed + 1, 5)} / 5</p>
           </div>
           <Button
             variant="outline"
             onClick={onClose}
             disabled={!canClose}
-            className="border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/20 disabled:opacity-50"
+            className="border-amber-600/40 text-amber-300 hover:bg-amber-900/20 disabled:opacity-50"
           >
             Cerrar
           </Button>
@@ -339,11 +339,11 @@ export function BlackjackModal({
 
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           <div className="space-y-5">
-            <div className="rounded-2xl border border-emerald-700/30 bg-emerald-950/60 p-4 shadow-[inset_0_0_30px_rgba(5,150,105,0.2)]">
+            <div className="rounded-2xl border border-amber-700/30 bg-zinc-950/60 p-4 shadow-[inset_0_0_30px_rgba(5,150,105,0.2)]">
               <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-widest text-emerald-300">Dealer</p>
+                <p className="text-xs uppercase tracking-widest text-amber-300">Dealer</p>
                 {phase !== "player" && dealerHand.length > 0 && (
-                  <p className="text-xs text-emerald-200">Total: {dealerTotal}</p>
+                  <p className="text-xs text-amber-200">Total: {dealerTotal}</p>
                 )}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -353,7 +353,7 @@ export function BlackjackModal({
                 {dealerCardsDisplay.map((card, index) => (
                   <div key={`dealer-${card?.rank ?? "hidden"}-${card?.suit ?? "x"}-${index}`} className="transition-all duration-300 ease-out">
                     {card ? renderCard(card) : (
-                      <div className="flex h-32 w-24 items-center justify-center rounded-xl border-2 border-emerald-600/50 bg-gradient-to-br from-emerald-800 to-emerald-950 text-2xl font-bold text-emerald-300 shadow-lg">
+                      <div className="flex h-32 w-24 items-center justify-center rounded-xl border-2 border-amber-600/50 bg-gradient-to-br from-amber-800 to-zinc-950 text-2xl font-bold text-amber-300 shadow-lg">
                         ?
                       </div>
                     )}
@@ -362,11 +362,11 @@ export function BlackjackModal({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-emerald-700/30 bg-emerald-950/60 p-4 shadow-[inset_0_0_30px_rgba(16,185,129,0.2)]">
+            <div className="rounded-2xl border border-amber-700/30 bg-zinc-950/60 p-4 shadow-[inset_0_0_30px_rgba(16,185,129,0.2)]">
               <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-widest text-emerald-300">Jugador</p>
+                <p className="text-xs uppercase tracking-widest text-amber-300">Jugador</p>
                 {playerHand.length > 0 && (
-                  <p className="text-xs text-emerald-200">Total: {playerTotal}</p>
+                  <p className="text-xs text-amber-200">Total: {playerTotal}</p>
                 )}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -382,11 +382,11 @@ export function BlackjackModal({
             </div>
 
             {phase === "result" && message && (
-              <div className="rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-br from-emerald-900/80 to-zinc-900/90 p-6 text-center shadow-[0_0_40px_rgba(16,185,129,0.3)]">
-                <p className={`text-4xl font-black mb-2 ${lastDelta > 0 ? 'text-emerald-400' : lastDelta < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+              <div className="rounded-2xl border-2 border-amber-500/50 bg-gradient-to-br from-amber-900/80 to-zinc-900/90 p-6 text-center shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                <p className={`text-4xl font-black mb-2 ${lastDelta > 0 ? 'text-amber-400' : lastDelta < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                   {lastDelta > 0 ? '🎉 ¡GANASTE!' : lastDelta < 0 ? '💸 PERDISTE' : '🤝 EMPATE'}
                 </p>
-                <p className={`text-5xl font-black mb-3 ${lastDelta > 0 ? 'text-emerald-300' : lastDelta < 0 ? 'text-red-300' : 'text-amber-300'}`}>
+                <p className={`text-5xl font-black mb-3 ${lastDelta > 0 ? 'text-amber-300' : lastDelta < 0 ? 'text-red-300' : 'text-amber-300'}`}>
                   {lastDelta >= 0 ? '+' : ''}{lastDelta}$
                 </p>
                 <p className="text-lg text-zinc-300">{message}</p>
@@ -394,19 +394,19 @@ export function BlackjackModal({
             )}
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-emerald-700/30 bg-zinc-950/70 p-5">
+          <div className="space-y-4 rounded-2xl border border-amber-700/30 bg-zinc-950/70 p-5">
             <div className="space-y-2">
               <p className="text-sm text-zinc-300">Saldo: ${playerMoney}</p>
               <p className="text-sm text-zinc-300">Apuesta actual: ${currentBet ?? 0}</p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs uppercase tracking-widest text-emerald-400">Apuesta</label>
+              <label className="text-xs uppercase tracking-widest text-amber-400">Apuesta</label>
               <Input
                 value={betInput}
                 onChange={(e) => setBetInput(e.target.value.replace(/[^0-9]/g, ""))}
                 disabled={phase !== "idle"}
-                className="bg-zinc-900 border-emerald-700/40 text-emerald-100"
+                className="bg-zinc-900 border-amber-700/40 text-amber-100"
               />
               <p className="text-[11px] text-zinc-400">
                 Minimo ${MIN_BET} {isAllIn ? "(all-in obligado)" : ""}
@@ -418,7 +418,7 @@ export function BlackjackModal({
                 <Button
                   onClick={handleDeal}
                   disabled={!canDeal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3"
                 >
                   🃏 Repartir
                 </Button>
@@ -453,7 +453,7 @@ export function BlackjackModal({
               )}
 
               {phase === "dealer" && (
-                <div className="text-center text-emerald-300 py-3 animate-pulse">
+                <div className="text-center text-amber-300 py-3 animate-pulse">
                   El dealer roba cartas...
                 </div>
               )}
@@ -461,7 +461,7 @@ export function BlackjackModal({
               {phase === "result" && (
                 <Button
                   onClick={handleReset}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-3"
                 >
                   🔄 Nueva mano
                 </Button>
