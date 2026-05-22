@@ -44,7 +44,7 @@ public class GameActionsController : ControllerBase
         try
         {
             var player = await _context.PlayersInGame
-                .FirstOrDefaultAsync(p => p.Id == playerId && p.GameId == gameId);
+                .FirstOrDefaultAsync(p => p.UserId == playerId && p.GameId == gameId);
 
             if (player == null)
                 return NotFound("Player not found");
@@ -211,12 +211,12 @@ public class GameActionsController : ControllerBase
             var fromPlayer = await _context.PlayersInGame
                 .Include(p => p.OwnedProperties)
                     .ThenInclude(po => po.Property)
-                .FirstOrDefaultAsync(p => p.Id == dto.FromPlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.FromPlayerId && p.GameId == dto.GameId);
 
             var toPlayer = await _context.PlayersInGame
                 .Include(p => p.OwnedProperties)
                     .ThenInclude(po => po.Property)
-                .FirstOrDefaultAsync(p => p.Id == dto.ToPlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.ToPlayerId && p.GameId == dto.GameId);
 
             if (fromPlayer == null || toPlayer == null)
                 return NotFound("Player not found");
@@ -354,7 +354,7 @@ public class GameActionsController : ControllerBase
                 var player = await _context.PlayersInGame
                     .Include(p => p.OwnedProperties)
                         .ThenInclude(po => po.Property)
-                    .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                    .FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
 
                 if (player != null)
                 {
@@ -390,7 +390,7 @@ public class GameActionsController : ControllerBase
             try
             {
                 boardSpace = await _context.BoardSpaces.FirstOrDefaultAsync(bs => bs.Position == dto.ToPosition);
-                var player = await _context.PlayersInGame.FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                var player = await _context.PlayersInGame.FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
                 if (player != null)
                 {
                     player.Position = dto.ToPosition;
@@ -428,7 +428,7 @@ public class GameActionsController : ControllerBase
         {
             var player = await _context.PlayersInGame
                 .Include(p => p.OwnedProperties)
-                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
 
             if (player == null)
                 return NotFound("Player not found");
@@ -502,7 +502,7 @@ public class GameActionsController : ControllerBase
 
             var ownership = new Models.PropertyOwnership
             {
-                PlayerInGameId = dto.PlayerId,
+                PlayerInGameId = player.Id,
                 PropertyId = inMemoryProperty.Id,
                 AcquiredAt = DateTime.UtcNow
             };
@@ -541,9 +541,9 @@ public class GameActionsController : ControllerBase
         try
         {
             var fromPlayer = await _context.PlayersInGame
-                .FirstOrDefaultAsync(p => p.Id == fromPlayerId && p.GameId == gameId);
+                .FirstOrDefaultAsync(p => p.UserId == fromPlayerId && p.GameId == gameId);
             var toPlayer = await _context.PlayersInGame
-                .FirstOrDefaultAsync(p => p.Id == toPlayerId && p.GameId == gameId);
+                .FirstOrDefaultAsync(p => p.UserId == toPlayerId && p.GameId == gameId);
 
             if (fromPlayer == null || toPlayer == null)
                 return NotFound("Player not found");
@@ -618,7 +618,7 @@ public class GameActionsController : ControllerBase
                 return NotFound("Game not found");
 
             var player = await _context.PlayersInGame
-                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
 
             if (player == null)
                 return NotFound("Player not found");
@@ -695,7 +695,7 @@ public class GameActionsController : ControllerBase
             player.Money = wallet.DineroActual;
 
             var ownership = await _context.PropertyOwnerships
-                .FirstOrDefaultAsync(po => po.PlayerInGameId == dto.PlayerId && po.PropertyId == dto.PropertyId);
+                .FirstOrDefaultAsync(po => po.PlayerInGameId == player.Id && po.PropertyId == dto.PropertyId);
 
             if (ownership != null)
             {
@@ -929,7 +929,7 @@ public class GameActionsController : ControllerBase
         {
             var player = await _context.PlayersInGame
                 .Include(p => p.OwnedProperties)
-                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
             if (player == null) return NotFound("Player not found");
 
             var ownership = player.OwnedProperties.FirstOrDefault(po => po.PropertyId == dto.PropertyId);
@@ -977,7 +977,7 @@ public class GameActionsController : ControllerBase
         {
             var player = await _context.PlayersInGame
                 .Include(p => p.OwnedProperties)
-                .FirstOrDefaultAsync(p => p.Id == dto.PlayerId && p.GameId == dto.GameId);
+                .FirstOrDefaultAsync(p => p.UserId == dto.PlayerId && p.GameId == dto.GameId);
             if (player == null) return NotFound("Player not found");
 
             var ownership = player.OwnedProperties.FirstOrDefault(po => po.PropertyId == dto.PropertyId);
@@ -1013,7 +1013,7 @@ public class GameActionsController : ControllerBase
     // === END GAME (ELO + Stats) ===
 
     [HttpPost("end-game")]
-    public async Task<ActionResult> EndGame([FromQuery] int gameId)
+    public async Task<ActionResult> EndGame([FromQuery] int gameId, [FromQuery] int? winnerId = null)
     {
         try
         {
@@ -1024,12 +1024,25 @@ public class GameActionsController : ControllerBase
             if (partida == null) return NotFound("Game not found");
             if (partida.Estado == "finalizada") return BadRequest("Game already finished");
 
-            var jugadores = partida.Jugadores.OrderByDescending(j => j.Activo).ThenByDescending(j => j.DineroActual).ToList();
-            var totalPlayers = jugadores.Count;
+            var allJugadores = partida.Jugadores.ToList();
+            var winner = winnerId.HasValue ? allJugadores.FirstOrDefault(j => j.UsuarioId == winnerId.Value) : null;
+            
+            var sortedJugadores = allJugadores
+                .Where(j => j.UsuarioId != winnerId)
+                .OrderByDescending(j => j.Activo)
+                .ThenByDescending(j => j.DineroActual)
+                .ToList();
+
+            if (winner != null)
+            {
+                sortedJugadores.Insert(0, winner);
+            }
+
+            var totalPlayers = sortedJugadores.Count;
 
             // Assign final positions (1 = winner, highest number = first eliminated)
             int position = 1;
-            foreach (var j in jugadores)
+            foreach (var j in sortedJugadores)
             {
                 j.PosicionFinal = position;
                 position++;
@@ -1038,7 +1051,7 @@ public class GameActionsController : ControllerBase
             // Calculate ELO deltas based on player count and position
             var eloDeltas = GetEloDeltas(totalPlayers);
 
-            foreach (var j in jugadores)
+            foreach (var j in sortedJugadores)
             {
                 var pos = j.PosicionFinal ?? totalPlayers;
                 var delta = pos <= eloDeltas.Length ? eloDeltas[pos - 1] : eloDeltas[^1];
@@ -1076,9 +1089,9 @@ public class GameActionsController : ControllerBase
                 }
             }
 
-            var winnerId = jugadores.FirstOrDefault()?.UsuarioId;
+            var actualWinnerId = sortedJugadores.FirstOrDefault()?.UsuarioId;
             partida.Estado = "finalizada";
-            partida.GanadorId = winnerId;
+            partida.GanadorId = actualWinnerId;
             partida.FechaFin = DateTime.UtcNow;
 
             await _mySql.SaveChangesAsync();
@@ -1087,11 +1100,11 @@ public class GameActionsController : ControllerBase
                 .SendAsync("GameEnded", new
                 {
                     gameId,
-                    winnerId,
-                    results = jugadores.Select(j => new { j.UsuarioId, j.PosicionFinal, j.EloGanado })
+                    winnerId = actualWinnerId,
+                    results = sortedJugadores.Select(j => new { j.UsuarioId, j.PosicionFinal, j.EloGanado })
                 });
 
-            return Ok(new { message = "Partida finalizada", winnerId });
+            return Ok(new { message = "Partida finalizada", winnerId = actualWinnerId });
         }
         catch (Exception ex) { return BadRequest(ex.Message); }
     }

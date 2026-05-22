@@ -46,7 +46,11 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(ex.Message);
+            // Surface the innermost exception so MySQL errors are visible
+            var inner = ex;
+            while (inner.InnerException != null) inner = inner.InnerException;
+            var message = inner == ex ? ex.Message : $"{ex.Message} -> {inner.Message}";
+            return BadRequest(message);
         }
     }
 

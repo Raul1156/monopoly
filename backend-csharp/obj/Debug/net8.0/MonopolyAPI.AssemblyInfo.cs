@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MonopolyAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cebadacf10904525acdcdc9b9554238952c57465")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+57a155818c92174b20029e4450339b304c6cbadc")]
 [assembly: System.Reflection.AssemblyProductAttribute("MonopolyAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MonopolyAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

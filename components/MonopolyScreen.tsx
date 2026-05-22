@@ -21,6 +21,7 @@ import type { User } from "../src/services/apiService";
 
 interface MonopolyScreenProps {
   onNavigate?: (screen: Screen) => void;
+  onUserUpdate?: (user: User) => void;
   currentUser: User;
   gameId: number;
 }
@@ -95,7 +96,7 @@ function CasillaUpgradeMarker({ position, level, title }: CasillaUpgradeMarkerPr
   );
 }
 
-export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScreenProps) {
+export function MonopolyScreen({ onNavigate, onUserUpdate, currentUser, gameId }: MonopolyScreenProps) {
   const [isLoadingGame, setIsLoadingGame] = useState(true);
   const [dice1, setDice1] = useState<number | null>(null);
   const [selectedPlayerForProperties, setSelectedPlayerForProperties] = useState<number | null>(null);
@@ -129,7 +130,22 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
   // Game over state
   const [gameOver, setGameOver] = useState(false);
   const [gameWinner, setGameWinner] = useState<{ id: number; name: string; reason: string } | null>(null);
+
+  const gameOverRef = useRef(false);
+  useEffect(() => { gameOverRef.current = gameOver; }, [gameOver]);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
+  const [showEliminatedModal, setShowEliminatedModal] = useState(false);
+  const [eliminatedPlayerName, setEliminatedPlayerName] = useState("");
+
+  const handleReturnToMenu = async () => {
+    try {
+      const updatedUser = await apiService.getUser(currentUser.id);
+      if (onUserUpdate) onUserUpdate(updatedUser);
+    } catch (err) {
+      console.warn("Error updating user before returning to menu", err);
+    }
+    onNavigate?.("menu");
+  };
 
   // Incoming trade offer state
   const [incomingOffer, setIncomingOffer] = useState<{
@@ -431,6 +447,38 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
           return player;
         })
       );
+      setBoardProperties((prev) => {
+        const next = [...prev];
+        const fromPlayer = playersRef.current.find(p => p.id === payload.fromUserId);
+        const toPlayer = playersRef.current.find(p => p.id === payload.toUserId);
+        payload.fromProperties.forEach((id: number) => {
+          if (next[id] && toPlayer) next[id] = { ...next[id], dueno: toPlayer.name, nivel: 0 };
+        });
+        payload.toProperties.forEach((id: number) => {
+          if (next[id] && fromPlayer) next[id] = { ...next[id], dueno: fromPlayer.name, nivel: 0 };
+        });
+        return next;
+      });
+      toast.success("🤝 Un trato ha sido completado");
+    });
+
+    connection.on("TradeOfferReceived", (payload: any) => {
+      if (!active) return;
+      if (payload.offer.toPlayerId === currentUser.id) {
+        setIncomingOffer({
+          ...payload.offer,
+          propertiesFrom: payload.offer.propertiesFrom,
+          propertiesTo: payload.offer.propertiesTo,
+          cashTo: payload.offer.cashTo
+        });
+      }
+    });
+
+    connection.on("TradeOfferResponse", (payload: any) => {
+      if (!active) return;
+      if (payload.fromUserId === currentUser.id && !payload.accepted) {
+        toast.error("❌ Tu oferta de trato fue rechazada");
+      }
     });
 
     connection.on("PlayerLeft", (payload: { userId: number; username: string; reason: string }) => {
@@ -467,11 +515,32 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       });
     });
 
+    connection.on("PlayerEliminated", (payload: { userId: number; username: string }) => {
+      if (!active) return;
+      console.log("[SignalR] PlayerEliminated:", payload);
+      setPlayersInGame((prev) =>
+        prev.map((player) =>
+          player.id === payload.userId ? { ...player, eliminated: true } : player
+        )
+      );
+      setEliminatedPlayerName(payload.username);
+      setShowEliminatedModal(true);
+    });
+
     connection.on("GameWonByForfeit", (payload: { winnerId: number; winnerName: string }) => {
       if (!active) return;
+      if (gameOverRef.current) return;
+
+      const amIEliminated = playersRef.current.find(p => p.id === currentUser.id)?.eliminated;
+      if (amIEliminated) return;
+
       console.log("[SignalR] GameWonByForfeit:", payload);
       setGameOver(true);
       setGameWinner({ id: payload.winnerId, name: payload.winnerName, reason: "incomparecencia" });
+      
+      if (currentUser.id === payload.winnerId) {
+        apiService.endGame(gameId, payload.winnerId).catch(console.error);
+      }
     });
 
     start();
@@ -842,20 +911,27 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
 
       // Check Tax (Cell 4)
       if (newPosition === 4) {
+        const moneyAfterTax = Math.max(0, moneyAfterMove - 200);
         setPlayersInGame((prev) =>
           prev.map((player) =>
             player.id === currentPlayer
               ? {
                   ...player,
-                  money: Math.max(0, player.money - 200),
+                  money: moneyAfterTax,
                 }
               : player
           )
         );
         toast.info("💸 Impuestos: Has pagado 200");
         // Broadcast tax to other players
-        const moneyAfterTax = Math.max(0, moneyAfterMove - 200);
         connectionRef.current?.invoke("BroadcastTaxPaid", gameId, currentPlayer, moneyAfterTax).catch(() => {});
+        if (moneyAfterTax <= 0) {
+          connectionRef.current?.invoke("BroadcastPlayerEliminated", gameId, currentPlayer, currentPlayerData.name).catch(() => {});
+          const activeAfter = playersRef.current.filter(p => !p.eliminated && p.id !== currentPlayer);
+          if (activeAfter.length === 1) {
+            apiService.endGame(gameId, activeAfter[0].id).catch(console.error);
+          }
+        }
       }
 
       // Check Casino (roulette at 20, blackjack at 38)
@@ -1052,20 +1128,23 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
               connectionRef.current?.invoke("BroadcastRentPaid", gameId, currentPlayer, propertyOwner.id, rentAmount, fromMoneyAfterRent, toMoneyAfterRent).catch(() => {});
 
               if (fromMoneyAfterRent <= 0) {
-                // Mark as eliminated when bankrupt from rent
-                setPlayersInGame((prev) =>
-                  prev.map((pl) => pl.id === currentPlayer ? { ...pl, eliminated: true } : pl)
-                );
-                toast.error(`💥 ¡${currentPlayerData.name} ha quedado en bancarrota!`);
+                // Notificar eliminación
+                connectionRef.current?.invoke("BroadcastPlayerEliminated", gameId, currentPlayer, currentPlayerData.name).catch(() => {});
+                const activeAfter = playersRef.current.filter(p => !p.eliminated && p.id !== currentPlayer);
+                if (activeAfter.length === 1) {
+                  apiService.endGame(gameId, activeAfter[0].id).catch(console.error);
+                }
               } else {
                 toast.error(`💸 Pagaste ${rentAmount} pts de alquiler a ${propertyOwner.name}`);
               }
 
-              property.dueno = propertyOwner.name;
+              const propertyToShow = { ...property, dueno: propertyOwner.name, alquiler: rentAmount };
+              setSelectedProperty(propertyToShow);
+              setShowPropertyModal(true);
+            } else {
+              setSelectedProperty(property);
+              setShowPropertyModal(true);
             }
-
-            setSelectedProperty(property);
-            setShowPropertyModal(true);
           }
         } catch (innerError) {
           console.error("Error al procesar la propiedad:", innerError);
@@ -1266,106 +1345,25 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
       return;
     }
 
-    setPlayersInGame((prev) => {
-      const from = prev.find((p) => p.id === currentPlayer);
-      const to = prev.find((p) => p.id === payload.toPlayerId);
-      if (!from || !to) return prev;
+    const propertyName = payload.propertiesTo.length > 0
+      ? boardProperties[payload.propertiesTo[0].propertyId]?.nombre
+      : (payload.cashFrom > 0 ? "dinero" : "propiedad");
 
-      const fromTransfer = from.properties.filter((pp) => fromPropertyIds.includes(pp.propertyId));
-      const toTransfer = to.properties.filter((pp) => toPropertyIds.includes(pp.propertyId));
-      const tradedIds = new Set<number>([...fromPropertyIds, ...toPropertyIds]);
-
-      return prev.map((player) => {
-        if (player.id === from.id) {
-          const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
-          const incoming = toTransfer.map((pp) => ({ ...pp, level: 0 }));
-          return {
-            ...player,
-            money: player.money - payload.cashFrom + payload.cashTo,
-            properties: [...remaining, ...incoming],
-          };
-        }
-
-        if (player.id === to.id) {
-          const remaining = player.properties.filter((pp) => !tradedIds.has(pp.propertyId));
-          const incoming = fromTransfer.map((pp) => ({ ...pp, level: 0 }));
-          return {
-            ...player,
-            money: player.money - payload.cashTo + payload.cashFrom,
-            properties: [...remaining, ...incoming],
-          };
-        }
-
-        return {
-          ...player,
-          properties: player.properties.filter((pp) => !tradedIds.has(pp.propertyId)),
-        };
-      });
-    });
-
-    setBoardProperties((prev) => {
-      const next = [...prev];
-      fromPropertyIds.forEach((id) => {
-        if (!next[id]) return;
-        next[id] = { ...next[id], dueno: toPlayer.name, nivel: 0 };
-      });
-      toPropertyIds.forEach((id) => {
-        if (!next[id]) return;
-        next[id] = { ...next[id], dueno: fromPlayer.name, nivel: 0 };
-      });
-      return next;
-    });
-
-    toast.success("✅ Trato realizado");
-
-    // Broadcast trade to other players
-    setPlayersInGame((prev) => {
-      const fromAfter = prev.find((p) => p.id === currentPlayer);
-      const toAfter = prev.find((p) => p.id === payload.toPlayerId);
-      if (fromAfter && toAfter) {
-        const fromPropertyDbIds = fromPropertyIds.map((id) => boardProperties[id]?.propertyDbId ?? 0);
-        const toPropertyDbIds = toPropertyIds.map((id) => boardProperties[id]?.propertyDbId ?? 0);
-        connectionRef.current?.invoke("BroadcastTradeCompleted", gameId, {
-          fromUserId: currentPlayer,
-          toUserId: payload.toPlayerId,
-          fromMoneyAfter: fromAfter.money,
-          toMoneyAfter: toAfter.money,
-          fromProperties: fromPropertyIds,
-          toProperties: toPropertyIds,
-          fromPropertyDbIds,
-          toPropertyDbIds,
-        }).catch(() => {});
-      }
-      return prev;
-    });
-
-    const mapToTradeDto = (propertyId: number) => {
-      const dbId = boardProperties[propertyId]?.propertyDbId;
-      return dbId ? { propertyId: dbId, releaseMortgageNow: false } : null;
+    const offer = {
+      fromPlayerId: currentPlayer,
+      fromPlayerName: fromPlayer.name,
+      propertyName,
+      propertyId: payload.propertiesTo.length > 0 ? payload.propertiesTo[0].propertyId : 0,
+      cashOffer: payload.cashFrom,
+      toPlayerId: payload.toPlayerId,
+      propertiesFrom: payload.propertiesFrom,
+      propertiesTo: payload.propertiesTo,
+      cashTo: payload.cashTo
     };
 
-    const propertiesFromDb = fromPropertyIds.map(mapToTradeDto).filter((v): v is { propertyId: number; releaseMortgageNow: boolean } => v !== null);
-    const propertiesToDb = toPropertyIds.map(mapToTradeDto).filter((v): v is { propertyId: number; releaseMortgageNow: boolean } => v !== null);
-
-    if (propertiesFromDb.length !== fromPropertyIds.length || propertiesToDb.length !== toPropertyIds.length) {
-      toast.warning("Trato aplicado localmente. Algunas propiedades no se pudieron persistir en backend");
-      return;
-    }
-
-    try {
-      await apiService.trade({
-        gameId,
-        fromPlayerId: currentPlayer,
-        toPlayerId: payload.toPlayerId,
-        cashFrom: payload.cashFrom,
-        cashTo: payload.cashTo,
-        propertiesFrom: propertiesFromDb,
-        propertiesTo: propertiesToDb,
-      });
-    } catch (tradeError) {
-      console.warn("No se pudo persistir el trato en backend:", tradeError);
-      toast.warning("Trato local aplicado. El backend no confirmó la operación");
-    }
+    connectionRef.current?.invoke("ProposeTradeOffer", gameId, payload.toPlayerId, offer).catch(() => {});
+    toast.info(`Oferta enviada a ${toPlayer.name}`);
+    setShowTradeModal(false);
   };
 
   const endTurn = () => {
@@ -1784,7 +1782,7 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
               variant="outline"
               size="sm"
               className="border-amber-600/30 text-amber-400 hover:bg-amber-600/10"
-              onClick={() => onNavigate?.("menu")}
+              onClick={handleReturnToMenu}
             >
               <Home className="w-4 h-4 mr-1" />
               Inicio
@@ -1883,32 +1881,49 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
         cashOffer={incomingOffer?.cashOffer ?? 0}
         onAccept={() => {
           if (!incomingOffer) return;
-          // Accept: transfer property to offeror and receive cash
-          setPlayersInGame((prev) => {
-            const propId = incomingOffer.propertyId;
-            return prev.map((player) => {
-              if (player.id === currentUser.id) {
-                return {
-                  ...player,
-                  money: player.money + incomingOffer.cashOffer,
-                  properties: player.properties.filter((pp) => pp.propertyId !== propId),
-                };
-              }
-              if (player.id === incomingOffer.fromPlayerId) {
-                const prop = boardProperties[propId];
-                return {
-                  ...player,
-                  money: player.money - incomingOffer.cashOffer,
-                  properties: [...player.properties, { propertyId: propId, propertyDbId: prop?.propertyDbId, level: 0 }],
-                };
-              }
-              return player;
-            });
+          
+          const mapToTradeDto = (p: any) => {
+            const dbId = boardProperties[p.propertyId]?.propertyDbId;
+            return dbId ? { propertyId: dbId, releaseMortgageNow: p.releaseMortgageNow || false } : null;
+          };
+
+          const propertiesFromDb = ((incomingOffer as any).propertiesFrom || []).map(mapToTradeDto).filter(Boolean);
+          const propertiesToDb = ((incomingOffer as any).propertiesTo || []).map(mapToTradeDto).filter(Boolean);
+
+          apiService.trade({
+            gameId,
+            fromPlayerId: incomingOffer.fromPlayerId,
+            toPlayerId: currentUser.id,
+            cashFrom: incomingOffer.cashOffer,
+            cashTo: (incomingOffer as any).cashTo || 0,
+            propertiesFrom: propertiesFromDb,
+            propertiesTo: propertiesToDb
+          }).then(() => {
+            // The API handles the DB. We now broadcast the completion to update all clients (including ourselves)
+            const fromProperties = (incomingOffer as any).propertiesFrom?.map((p: any) => p.propertyId) || [];
+            const toProperties = (incomingOffer as any).propertiesTo?.map((p: any) => p.propertyId) || [];
+            
+            connectionRef.current?.invoke("BroadcastTradeCompleted", gameId, {
+              fromUserId: incomingOffer.fromPlayerId,
+              toUserId: currentUser.id,
+              fromMoneyAfter: playersInGame.find(p => p.id === incomingOffer.fromPlayerId)!.money - incomingOffer.cashOffer,
+              toMoneyAfter: playersInGame.find(p => p.id === currentUser.id)!.money + incomingOffer.cashOffer,
+              fromProperties,
+              toProperties,
+              fromPropertyDbIds: fromProperties.map((id: number) => boardProperties[id]?.propertyDbId ?? 0),
+              toPropertyDbIds: toProperties.map((id: number) => boardProperties[id]?.propertyDbId ?? 0)
+            }).catch(() => {});
+            
+            toast.success(`✅ Aceptaste la oferta de ${incomingOffer.fromPlayerName}`);
+            setIncomingOffer(null);
+          }).catch(() => {
+            toast.error("Error al procesar el trato");
           });
-          toast.success(`✅ Aceptaste la oferta de ${incomingOffer.fromPlayerName}`);
-          setIncomingOffer(null);
         }}
         onReject={() => {
+          if (incomingOffer) {
+            connectionRef.current?.invoke("RespondTradeOffer", gameId, incomingOffer.fromPlayerId, false).catch(() => {});
+          }
           toast.info(`❌ Rechazaste la oferta de ${incomingOffer?.fromPlayerName}`);
           setIncomingOffer(null);
         }}
@@ -1930,10 +1945,43 @@ export function MonopolyScreen({ onNavigate, currentUser, gameId }: MonopolyScre
               </p>
             </div>
             <Button
-              onClick={() => onNavigate?.("menu")}
+              onClick={handleReturnToMenu}
               className="w-full bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white py-4 text-lg font-bold rounded-xl"
             >
               Volver al Menú
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Eliminated popup */}
+      {showEliminatedModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-[70]">
+          <div className="absolute inset-0 bg-black/80" />
+          <div className="relative z-10 w-[90vw] max-w-md rounded-3xl border-2 border-red-500/60 bg-gradient-to-b from-zinc-900 to-zinc-950 shadow-2xl p-8 text-center">
+            <div className="text-6xl mb-4">💥</div>
+            <h2 className="text-3xl font-black text-red-400 mb-2">¡Jugador Eliminado!</h2>
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 my-6">
+              <p className="text-white text-lg">
+                <span className="font-bold text-red-300">{eliminatedPlayerName}</span> se ha quedado en bancarrota y ha sido eliminado de la partida.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setShowEliminatedModal(false);
+                const activePlayers = playersInGame.filter(p => !p.eliminated);
+                if (activePlayers.length === 1) {
+                  const winner = activePlayers[0];
+                  setGameOver(true);
+                  setGameWinner({ id: winner.id, name: winner.name, reason: "victoria" });
+                  if (currentUser.id === winner.id) {
+                    apiService.endGame(gameId).catch(console.error);
+                  }
+                }
+              }}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-4 text-lg font-bold rounded-xl"
+            >
+              Aceptar
             </Button>
           </div>
         </div>

@@ -53,7 +53,7 @@ SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_S
 SET @query = IF(@col_exists = 0, 'ALTER TABLE partida_usuarios ADD COLUMN experiencia_ganada INT NOT NULL DEFAULT 0', 'SELECT 1');
 PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- 3. Achievements table
+-- 3. Achievements table (matches tablas.sql exactly)
 CREATE TABLE IF NOT EXISTS logros (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(100) NOT NULL,
@@ -62,9 +62,9 @@ CREATE TABLE IF NOT EXISTS logros (
   recompensa_pts INT NOT NULL DEFAULT 0,
   condicion VARCHAR(100) NOT NULL,
   valor_objetivo INT NOT NULL DEFAULT 1
-);
+) ENGINE=InnoDB;
 
--- 4. User achievements unlocked
+-- 4. User achievements unlocked (matches tablas.sql exactly)
 CREATE TABLE IF NOT EXISTS usuario_logros (
   id INT AUTO_INCREMENT PRIMARY KEY,
   usuario_id INT NOT NULL,
@@ -73,28 +73,97 @@ CREATE TABLE IF NOT EXISTS usuario_logros (
   UNIQUE KEY uk_usuario_logro (usuario_id, logro_id),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (logro_id) REFERENCES logros(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
--- 5. Daily rewards definition table
+-- 5. Recompensas table (matches tablas.sql exactly)
+-- Drop and recreate if schema is outdated (old migration_v2 had simplified schema)
+-- First check if the table exists with the wrong schema
+SET @has_gemas = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'gemas');
+SET @table_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas');
+
+-- If table exists but is missing gemas column, add the missing columns
+-- Add gemas
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'gemas');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN gemas INT DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add experiencia
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'experiencia');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN experiencia INT DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add activa
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'activa');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN activa BOOLEAN DEFAULT TRUE', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add dias_intervalo (if missing)
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'dias_intervalo');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN dias_intervalo INT DEFAULT 1', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add requiere_partida_jugada
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'requiere_partida_jugada');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN requiere_partida_jugada BOOLEAN DEFAULT FALSE', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add creado_en
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'recompensas' AND COLUMN_NAME = 'creado_en');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE recompensas ADD COLUMN creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Create table if not exists (full schema matching tablas.sql)
 CREATE TABLE IF NOT EXISTS recompensas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(100) NOT NULL,
   descripcion TEXT,
-  tipo VARCHAR(20) NOT NULL DEFAULT 'diaria',
-  moneda_lobby INT NOT NULL DEFAULT 0,
-  requisito VARCHAR(100),
-  dias_intervalo INT NOT NULL DEFAULT 1
-);
+  tipo ENUM('diaria', 'partida', 'logro', 'evento') NOT NULL,
+  moneda_lobby INT DEFAULT 0,
+  gemas INT DEFAULT 0,
+  experiencia INT DEFAULT 0,
+  requisito VARCHAR(255),
+  activa BOOLEAN DEFAULT TRUE,
+  dias_intervalo INT DEFAULT 1,
+  requiere_partida_jugada BOOLEAN DEFAULT FALSE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_tipo (tipo),
+  INDEX idx_activa (activa)
+) ENGINE=InnoDB;
 
--- 6. Reward history (per user, per day)
+-- 6. Historial recompensas (matches tablas.sql exactly)
+-- Fix old migration that used fecha_reclamada instead of fecha
+SET @table_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'historial_recompensas');
+SET @old_col = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'historial_recompensas' AND COLUMN_NAME = 'fecha_reclamada');
+SET @query = IF(@table_exists > 0 AND @old_col > 0, 'ALTER TABLE historial_recompensas CHANGE COLUMN fecha_reclamada fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add moneda_recibida if missing
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'historial_recompensas' AND COLUMN_NAME = 'moneda_recibida');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE historial_recompensas ADD COLUMN moneda_recibida INT DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add gemas_recibidas if missing
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'historial_recompensas' AND COLUMN_NAME = 'gemas_recibidas');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE historial_recompensas ADD COLUMN gemas_recibidas INT DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add experiencia_recibida if missing
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'historial_recompensas' AND COLUMN_NAME = 'experiencia_recibida');
+SET @query = IF(@table_exists > 0 AND @col_exists = 0, 'ALTER TABLE historial_recompensas ADD COLUMN experiencia_recibida INT DEFAULT 0', 'SELECT 1');
+PREPARE stmt FROM @query; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Create table if not exists (full schema matching tablas.sql)
 CREATE TABLE IF NOT EXISTS historial_recompensas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   usuario_id INT NOT NULL,
   recompensa_id INT NOT NULL,
-  fecha_reclamada DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  moneda_recibida INT DEFAULT 0,
+  gemas_recibidas INT DEFAULT 0,
+  experiencia_recibida INT DEFAULT 0,
+  fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (recompensa_id) REFERENCES recompensas(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB;
 
 -- ============================================
 -- SEED DATA

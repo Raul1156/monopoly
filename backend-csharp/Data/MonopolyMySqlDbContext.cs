@@ -32,6 +32,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("usuarios");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Username).HasColumnName("username").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Email).HasColumnName("email").HasMaxLength(100).IsRequired();
             entity.Property(e => e.PasswordHash).HasColumnName("password_hash").HasMaxLength(255).IsRequired();
@@ -63,6 +64,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("casillas");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Posicion).HasColumnName("posicion").IsRequired();
             entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
@@ -74,6 +76,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("propiedades");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.CasillaId).HasColumnName("casilla_id").IsRequired();
             entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Precio).HasColumnName("precio").IsRequired();
@@ -96,6 +99,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("propiedades_partida");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.PartidaId).HasColumnName("partida_id").IsRequired();
             entity.Property(e => e.PropiedadId).HasColumnName("propiedad_id").IsRequired();
             entity.Property(e => e.Nivel).HasColumnName("nivel").IsRequired();
@@ -107,6 +111,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("partidas");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.CodigoPartida).HasColumnName("codigo_partida").HasMaxLength(20);
             entity.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(20);
             entity.Property(e => e.TurnoActual).HasColumnName("turno_actual");
@@ -130,6 +135,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("partida_usuarios");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.PartidaId).HasColumnName("partida_id").IsRequired();
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
             entity.Property(e => e.OrdenJuego).HasColumnName("orden_juego");
@@ -153,6 +159,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("cartas");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
             entity.Property(e => e.Descripcion).HasColumnName("descripcion").IsRequired();
             entity.Property(e => e.Efecto).HasColumnName("efecto").HasMaxLength(50).IsRequired();
@@ -165,6 +172,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("productos");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.Precio).HasColumnName("precio").IsRequired();
@@ -179,6 +187,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("inventario");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
             entity.Property(e => e.ProductoId).HasColumnName("producto_id").IsRequired();
             entity.Property(e => e.Cantidad).HasColumnName("cantidad");
@@ -200,6 +209,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("logros");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.Icono).HasColumnName("icono").HasMaxLength(10);
@@ -212,6 +222,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("usuario_logros");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
             entity.Property(e => e.LogroId).HasColumnName("logro_id").IsRequired();
             entity.Property(e => e.DesbloqueadoEn).HasColumnName("desbloqueado_en");
@@ -232,6 +243,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("recompensas");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Descripcion).HasColumnName("descripcion");
             entity.Property(e => e.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
@@ -247,6 +259,7 @@ public class MonopolyMySqlDbContext : DbContext
         {
             entity.ToTable("historial_recompensas");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.UsuarioId).HasColumnName("usuario_id").IsRequired();
             entity.Property(e => e.RecompensaId).HasColumnName("recompensa_id").IsRequired();
             entity.Property(e => e.MonedaRecibida).HasColumnName("moneda_recibida");

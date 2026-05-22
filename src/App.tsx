@@ -115,6 +115,7 @@ export default function App() {
             onNavigate={navigateToScreen} 
             currentUser={currentUser}
             gameId={activeGameId}
+            onUserUpdate={handleUserUpdate}
           />
         )}
         {currentScreen === 'shop' && (

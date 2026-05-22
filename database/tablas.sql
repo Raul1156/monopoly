@@ -25,6 +25,12 @@ CREATE TABLE usuarios (
     partidas_jugadas INT DEFAULT 0,
     partidas_ganadas INT DEFAULT 0,
     activo BOOLEAN DEFAULT TRUE,
+    tiempo_jugado_minutos INT NOT NULL DEFAULT 0,
+    racha_actual INT NOT NULL DEFAULT 0,
+    mejor_racha INT NOT NULL DEFAULT 0,
+    es_admin TINYINT(1) NOT NULL DEFAULT 0,
+    two_factor_secret VARCHAR(255) NULL,
+    two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0,
     ultimo_login TIMESTAMP NULL,
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -275,6 +281,30 @@ CREATE TABLE historial_casino (
     INDEX idx_fecha (fecha)
 ) ENGINE=InnoDB;
 
+-- ==================================
+-- LOGROS (ACHIEVEMENTS)
+-- ==================================
+
+CREATE TABLE logros (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    icono VARCHAR(10),
+    recompensa_pts INT NOT NULL DEFAULT 0,
+    condicion VARCHAR(100) NOT NULL,
+    valor_objetivo INT NOT NULL DEFAULT 1
+) ENGINE=InnoDB;
+
+CREATE TABLE usuario_logros (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id INT NOT NULL,
+    logro_id INT NOT NULL,
+    desbloqueado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_usuario_logro (usuario_id, logro_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (logro_id) REFERENCES logros(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 INSERT INTO casillas (posicion, nombre, tipo) VALUES
 (0, 'SALIDA', 'SALIDA'),
 (1, 'San José', 'PROPIEDAD'),
@@ -398,3 +428,23 @@ INSERT INTO cartas (tipo, descripcion, efecto, valor) VALUES
 ('SUERTE', 'Fiesta de Nochevieja: Te toca pagar todos los canapés de la cena de fin de año y te quedas sin uvas. - Pagas 50 ₧', 'perder_dinero', 50),
 ('SUERTE', 'Alquiler de Casa: Paga a cada jugador 50 ₧ por cada casa/hotel que posean.', 'pagar_jugadores', 50),
 ('SUERTE', 'Arreglos del Pueblo: El Ayuntamiento de tu pueblo te exige pagar los arreglos de la plaza mayor. - Pagas 50 ₧', 'perder_dinero', 50);
+
+-- ==================================
+-- DATOS INICIALES: LOGROS
+-- ==================================
+
+INSERT INTO logros (nombre, descripcion, icono, recompensa_pts, condicion, valor_objetivo) VALUES
+('Primera Victoria', 'Gana tu primera partida de Monopoly', '🏆', 100, 'primera_victoria', 1),
+('Veterano', 'Juega 50 partidas', '🎖️', 500, 'veterano', 50),
+('Racha de 5', 'Gana 5 partidas consecutivas', '🔥', 300, 'racha_5', 5),
+('Racha de 10', 'Gana 10 partidas consecutivas', '💎', 1000, 'racha_10', 10),
+('Millonario', 'Acumula 10.000 pts en tu cuenta', '💰', 500, 'millonario', 10000),
+('Maestro del Casino', 'Acumula mas de 100 pts de casinos', '🎰', 200, 'maestro_casino', 100);
+
+-- ==================================
+-- DATOS INICIALES: RECOMPENSAS DIARIAS
+-- ==================================
+
+INSERT INTO recompensas (nombre, descripcion, tipo, moneda_lobby, requisito, dias_intervalo) VALUES
+('Bono de Conexion', 'Recibe puntos por conectarte cada dia', 'diaria', 200, NULL, 1),
+('Recompensa por Partida', 'Juega una partida para ganar puntos extra', 'partida', 150, 'jugar_partida', 1);

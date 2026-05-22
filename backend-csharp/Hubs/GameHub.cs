@@ -225,8 +225,21 @@ public class GameHub : Hub
     /// </summary>
     public async Task BroadcastTradeCompleted(int gameId, object tradeDetails)
     {
-        await Clients.OthersInGroup(GetGameGroup(gameId))
+        await Clients.Group(GetGameGroup(gameId))
             .SendAsync("TradeCompleted", tradeDetails);
+    }
+
+    /// <summary>
+    /// Broadcast when a player is eliminated from the game.
+    /// </summary>
+    public async Task BroadcastPlayerEliminated(int gameId, int userId, string username)
+    {
+        await Clients.Group(GetGameGroup(gameId))
+            .SendAsync("PlayerEliminated", new
+            {
+                userId,
+                username
+            });
     }
 
     /// <summary>

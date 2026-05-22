@@ -443,9 +443,11 @@ class ApiService {
     });
   }
 
-  async endGame(gameId: number): Promise<{ message: string; winnerId: number }> {
-    return this.request(`/gameactions/end-game?gameId=${gameId}`, {
-      method: 'POST',
+  async endGame(gameId: number, winnerId?: number) {
+    let url = `/gameactions/end-game?gameId=${gameId}`;
+    if (winnerId) url += `&winnerId=${winnerId}`;
+    return this.request(url, {
+      method: "POST"
     });
   }
 
