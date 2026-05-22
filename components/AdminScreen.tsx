@@ -11,13 +11,15 @@ import {
   CheckCircle,
   Star,
   RotateCcw,
-  Loader2
+  Loader2,
+  LogOut
 } from 'lucide-react';
 import { apiService, type User as UserType } from '../src/services/apiService';
 import { toast } from 'sonner';
 
 interface AdminScreenProps {
   currentUser: UserType;
+  onLogout: () => void;
 }
 
 interface AdminUser {
@@ -42,7 +44,7 @@ interface AdminStats {
   bannedUsers: number;
 }
 
-export function AdminScreen({ currentUser }: AdminScreenProps) {
+export function AdminScreen({ currentUser, onLogout }: AdminScreenProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,12 +151,22 @@ export function AdminScreen({ currentUser }: AdminScreenProps) {
       {/* Header */}
       <Card className="bg-black/60 border-red-500/30 mb-6">
         <CardContent className="p-6">
-          <div className="flex items-center space-x-3">
-            <Shield className="w-8 h-8 text-red-400" />
-            <div>
-              <h1 className="text-white text-2xl font-bold">Panel de Administración</h1>
-              <p className="text-red-300/70">Gestión de usuarios y partidas</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Shield className="w-8 h-8 text-red-400" />
+              <div>
+                <h1 className="text-white text-2xl font-bold">Panel de Administración</h1>
+                <p className="text-red-300/70">Gestión de usuarios y partidas</p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={onLogout}
+              className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Cerrar Sesión
+            </Button>
           </div>
         </CardContent>
       </Card>

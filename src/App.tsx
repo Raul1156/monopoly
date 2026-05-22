@@ -38,7 +38,7 @@ export default function App() {
           });
       setCurrentUser(user);
       setIsLoggedIn(true);
-      setCurrentScreen('menu');
+      setCurrentScreen(user.isAdmin ? 'admin' : 'menu');
     } catch (error) {
       console.error('Error during login:', error);
       throw error;
@@ -128,11 +128,11 @@ export default function App() {
           <SettingsScreen onNavigate={navigateToScreen} onLogout={handleLogout} />
         )}
         {currentScreen === 'admin' && (
-          <AdminScreen currentUser={currentUser} />
+          <AdminScreen currentUser={currentUser} onLogout={handleLogout} />
         )}
       </div>
 
-      {currentScreen !== 'login' && !['shop', 'inventory', 'monopoly', 'playmode', 'lobby'].includes(currentScreen) && (
+      {currentScreen !== 'login' && !['shop', 'inventory', 'monopoly', 'playmode', 'lobby', 'admin'].includes(currentScreen) && (
         <Navigation currentScreen={currentScreen} onNavigate={navigateToScreen} />
       )}
     </div>
