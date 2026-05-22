@@ -13,6 +13,7 @@ import { BlackjackModal } from "./BlackjackModal";
 import { TramCardModal } from "./TramCardModal";
 import { TradeModal, IncomingTradeOffer } from "./TradeModal";
 import { HubConnectionBuilder, LogLevel, type HubConnection } from "@microsoft/signalr";
+import { getHubUrl, getApiBaseUrl } from "../src/services/urlResolver";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { PropertyInfoCard } from "./PropertyInfoCard";
 import { PropertyInfoModal } from "./PropertyInfoModal";
@@ -279,8 +280,7 @@ export function MonopolyScreen({ onNavigate, onUserUpdate, currentUser, gameId }
   }, []);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-    const hubUrl = apiBase.replace(/\/?api\/?$/, "") + "/hubs/game";
+    const hubUrl = getHubUrl();
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl)
       .withAutomaticReconnect()
@@ -821,7 +821,7 @@ export function MonopolyScreen({ onNavigate, onUserUpdate, currentUser, gameId }
           const timeoutMs = 800;
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/gameactions/roll-dice`, {
+          const res = await fetch(`${getApiBaseUrl()}/gameactions/roll-dice`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,

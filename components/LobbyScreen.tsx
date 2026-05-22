@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Users, Copy, ArrowLeft, Loader2, Play } from 'lucide-react';
 import { apiService, type LobbyInfo, type LobbyPlayer } from '../src/services/apiService';
 import { HubConnectionBuilder } from '@microsoft/signalr';
+import { getHubUrl } from '../src/services/urlResolver';
 import { toast } from 'sonner';
 
 interface LobbyScreenProps {
@@ -32,7 +33,7 @@ export function LobbyScreen({ lobbyCode, userId, onBack, onGameStarted }: LobbyS
 
         // Setup SignalR
         newConnection = new HubConnectionBuilder()
-          .withUrl(`${import.meta.env.VITE_API_URL?.replace(/\/?api\/?$/, '') || 'http://localhost:5000'}/hubs/game`)
+          .withUrl(getHubUrl())
           .withAutomaticReconnect()
           .build();
 
