@@ -184,7 +184,7 @@ export interface InventoryItem {
   productId: number;
   name: string;
   description: string;
-  category: 'themes';
+  category: 'themes' | 'avatars';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   preview: string;
   equipped: boolean;
@@ -460,6 +460,29 @@ class ApiService {
 
   async getInventory(userId: number): Promise<InventoryItem[]> {
     return this.request<InventoryItem[]>(`/shop/inventory/${userId}`);
+  }
+
+  async getProfilePhotos(): Promise<ShopProduct[]> {
+    return this.request<ShopProduct[]>('/shop/profile-photos');
+  }
+
+  async buyProduct(userId: number, productId: number): Promise<{ message: string; newBalance: number }> {
+    return this.request('/shop/buy', {
+      method: 'POST',
+      body: JSON.stringify({ userId, productId }),
+    });
+  }
+
+  async equipItem(userId: number, productId: number): Promise<{ message: string }> {
+    return this.request(`/shop/equip/${userId}/${productId}`, {
+      method: 'POST',
+    });
+  }
+
+  async unequipItem(userId: number, productId: number): Promise<{ message: string }> {
+    return this.request(`/shop/unequip/${userId}/${productId}`, {
+      method: 'POST',
+    });
   }
 
   // Events endpoints

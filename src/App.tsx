@@ -121,10 +121,10 @@ export default function App() {
           />
         )}
         {currentScreen === 'shop' && (
-          <ShopScreen onNavigate={navigateToScreen} currentUser={currentUser} />
+          <ShopScreen onNavigate={navigateToScreen} currentUser={currentUser} onUserUpdate={handleUserUpdate} />
         )}
         {currentScreen === 'inventory' && (
-          <InventoryScreen onNavigate={navigateToScreen} currentUser={currentUser} />
+          <InventoryScreen onNavigate={navigateToScreen} currentUser={currentUser} onUserUpdate={handleUserUpdate} />
         )}
         {currentScreen === 'settings' && (
           <SettingsScreen onNavigate={navigateToScreen} onLogout={handleLogout} />
