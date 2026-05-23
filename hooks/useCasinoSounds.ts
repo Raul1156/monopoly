@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
+import { useSoundSettings } from './SoundSettingsContext';
 
 // Map of sound types to their file paths
 const SOUNDS = {
@@ -10,6 +11,7 @@ const SOUNDS = {
 
 export function useCasinoSounds() {
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
+  const { soundEnabled, soundVolume } = useSoundSettings();
 
   // Initialize audio objects
   useEffect(() => {
@@ -28,18 +30,27 @@ export function useCasinoSounds() {
     };
   }, []);
 
+  // Keep all audio elements' volume in sync with settings
+  useEffect(() => {
+    const vol = soundVolume / 100;
+    Object.values(audioRefs.current).forEach(audio => {
+      audio.volume = vol;
+    });
+  }, [soundVolume]);
+
   const playSound = useCallback((key: keyof typeof SOUNDS, loop = false) => {
+    if (!soundEnabled) return;
     const audio = audioRefs.current[key];
     if (audio) {
       audio.currentTime = 0;
       audio.loop = loop;
-      audio.volume = 0.5; // Default volume 50%
+      audio.volume = soundVolume / 100;
       audio.play().catch(err => {
         // Ignore auto-play errors or missing file errors to prevent crashing
         console.warn(`Failed to play sound ${key}:`, err);
       });
     }
-  }, []);
+  }, [soundEnabled, soundVolume]);
 
   const stopSound = useCallback((key: keyof typeof SOUNDS) => {
     const audio = audioRefs.current[key];

@@ -14,6 +14,7 @@ import { PlayModeScreen } from '../components/PlayModeScreen';
 import { LobbyScreen } from '../components/LobbyScreen';
 import { AdminScreen } from '../components/AdminScreen';
 import { apiService, type User } from './services/apiService';
+import { SoundSettingsProvider } from '../hooks/SoundSettingsContext';
 
 export type Screen = 'login' | 'menu' | 'ranking' | 'profile' | 'events' | 'monopoly' | 'shop' | 'inventory' | 'settings' | 'playmode' | 'lobby' | 'admin';
 
@@ -64,6 +65,7 @@ export default function App() {
   }
 
   return (
+    <SoundSettingsProvider>
     <>
     <div className="min-h-screen bg-gradient-to-br from-red-900 via-red-800 to-amber-900 flex flex-col w-full relative overflow-hidden">
       {/* Background Pattern */}
@@ -138,5 +140,6 @@ export default function App() {
     </div>
     <Toaster position="top-center" richColors />
     </>
+    </SoundSettingsProvider>
   );
 }
