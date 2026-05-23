@@ -1,245 +1,178 @@
-# Monopoly Casino y Tapas — Memoria Tecnica (Hito 3)
+# Monopoly Casino y Tapas
 
-Proyecto de segundo curso de DAM. Consiste en un juego de Monopoly online con tematica de casino y tapas espanolas, desarrollado como aplicacion fullstack con frontend en React, backend en C# y base de datos MySQL en Docker.
+Este proyecto es una aplicación web full-stack desarrollada como proyecto académico para el ciclo formativo de grado superior en Desarrollo de Aplicaciones Multiplataforma (DAM). Consiste en un juego de Monopoly online en tiempo real, tematizado en el entorno de casinos y tapas españolas.
 
----
+## 1. Descripción del proyecto
 
-## Indice
+El sistema proporciona una experiencia de juego de tablero multijugador completa. Su objetivo principal es aplicar conceptos avanzados de programación web, sincronización en tiempo real y gestión de bases de datos relacionales en un entorno lúdico. Los usuarios pueden registrarse, gestionar su perfil, comprar avatares en una tienda virtual y competir en partidas online interactuando con mecánicas clásicas (dados, propiedades, cartas) y mecánicas nuevas (ruleta de casino, transporte entre estaciones).
 
-1. [Resumen del MVP-1 y alcance implementado]
-2. [Funcionalidades del MVP-1 (casos de uso implementados)]
-3. [Arquitectura implementada y entorno de ejecucion]
-4. [Base de datos y operaciones CRUD implementadas]
-5. [Plan de pruebas ejecutado]
-6. [Repositorio y control de versiones]
+## 2. Tecnologías utilizadas
 
----
+El proyecto está construido sobre las siguientes tecnologías y herramientas:
 
-## 1. Resumen del MVP-1 y alcance implementado
+**Frontend:**
+- **Librería principal:** React (con TypeScript).
+- **Estilos:** TailwindCSS.
+- **Empaquetador y entorno de desarrollo:** Vite.
 
-En este hito se ha implementado el flujo completo de una partida de Monopoly: el usuario puede registrarse, iniciar sesion, acceder al menu principal y jugar una partida completa en la pantalla del tablero. La partida incluye tirar dados, moverse por el tablero, comprar propiedades, pagar alquileres, caer en la carcel, robar cartas de Comunidad y Suerte, y jugar a la ruleta del casino. El juego detecta la bancarrota de jugadores y determina al ganador.
+**Backend:**
+- **Framework:** ASP.NET Core (C#).
+- **Comunicación en tiempo real:** SignalR.
+- **ORM:** Entity Framework Core.
 
-Ademas del flujo de juego, se han desarrollado las interfaces de las pantallas complementarias (tienda, inventario, configuracion, ranking, perfil y eventos), aunque algunas de ellas todavia no estan completamente conectadas con el backend.
+**Base de Datos y Persistencia:**
+- **Base de datos relacional:** MySQL (desplegada mediante contenedor Docker).
+- **Base de datos temporal:** Entity Framework Core InMemory (para gestionar el estado efímero de las partidas activas).
 
-**Funcionalidades del MVP-1:**
-- Registro e inicio de sesion de usuarios (con contrasenas hasheadas).
-- Menu principal con navegacion a todas las secciones.
-- Partida completa de Monopoly con tablero visual, dados, turnos, propiedades, alquileres, carcel, cartas y casino.
-- Ranking de jugadores por ELO consultado desde la base de datos.
-- Pantalla de perfil con estadisticas del usuario.
-- Tienda con productos obtenidos de la base de datos.
-- Inventario del usuario.
+## 3. Arquitectura general del sistema
 
-**Cambios respecto al diseno del Hito 2:**
-- Se ha anadido una base de datos en memoria (InMemory) ademas de MySQL para gestionar las sesiones de juego activas, ya que los datos de partida no necesitan persistir tras reiniciar el servidor.
-- Se ha incorporado una casilla de casino con una ruleta interactiva y efectos de sonido generados proceduralmente, que no estaba prevista en el diseno original.
-- Se ha integrado en frontend la mecanica de transporte entre estaciones (tram): al caer en una estacion propia, si el jugador tiene estaciones consecutivas compradas, puede elegir entre pasar o usar el tram para ir a la siguiente estacion consecutiva comprada.
+La aplicación emplea una arquitectura cliente-servidor, con el backend estructurado en capas para asegurar la escalabilidad y separación de responsabilidades:
 
----
+- **Capa de Controladores (Controllers):** Gestiona las peticiones HTTP (API REST) para las operaciones CRUD y la autenticación.
+- **SignalR Hubs:** Administra los WebSockets para la comunicación bidireccional y la sincronización de estado entre los distintos jugadores conectados a una misma partida.
+- **Capa de Servicios (Services):** Contiene toda la lógica de negocio (validación de turnos, reglas económicas del juego, gestión del inventario).
+- **Capa de Acceso a Datos (Data/Repositories):** Implementa los DbContext de Entity Framework para realizar consultas tanto a la base de datos MySQL como a la base de datos en memoria.
+- **Modelos y DTOs (Models / DTOs):** Entidades de dominio que mapean con la base de datos y objetos de transferencia de datos utilizados en la comunicación con el cliente.
 
-## 2. Funcionalidades del MVP-1 (casos de uso implementados)
+El frontend consume los servicios a través de un servicio centralizado y gestiona el estado global de la interfaz y de la partida mediante Hooks de React.
 
-A continuacion se listan los casos de uso del proyecto con su estado actual de implementacion:
+## 4. Requisitos previos
 
-| ID | Caso de uso | Estado |
-|---|---|---|
-| CU01 | Registrarse | Implementado |
-| CU02 | Iniciar sesion | Implementado |
-| CU03 | Ver menu principal | Implementado |
-| CU04 | Jugar partida de Monopoly | Implementado |
-| CU05 | Tirar dados | Implementado |
-| CU06 | Moverse por el tablero | Implementado |
-| CU07 | Comprar propiedad | Implementado |
-| CU08 | Pagar alquiler | Implementado |
-| CU09 | Caer en la carcel | Implementado |
-| CU10 | Robar carta de Comunidad | Implementado |
-| CU11 | Robar carta de Suerte | Implementado |
-| CU12 | Jugar a la ruleta del casino | Implementado |
-| CU13 | Detectar bancarrota | Implementado |
-| CU14 | Determinar ganador | Implementado |
-| CU15 | Ver ranking de jugadores | Implementado |
-| CU16 | Ver perfil de usuario | Implementado |
-| CU17 | Teletransporte entre estaciones | Implementado |
-| CU18 | Comprar en la tienda | En progreso (interfaz lista, falta logica de compra) |
-| CU19 | Gestionar inventario | En progreso (interfaz lista, falta equipar/desequipar) |
-| CU20 | Configurar ajustes | En progreso (interfaz lista, falta persistencia) |
-| CU21 | Mejorar propiedades (casas/hoteles) | Pendiente |
-| CU22 | Hipotecar propiedades | Pendiente |
-| CU23 | Subastar propiedades | Pendiente |
-| CU24 | Editar perfil | Pendiente |
-| CU25 | Gestionar eventos | Pendiente |
-| CU26 | Guardar resultado de partida en BD | Pendiente |
+Para poder ejecutar el proyecto en un entorno local, es necesario disponer del siguiente software instalado en su equipo:
 
-**Flujo completo funcional:** Un usuario puede registrarse, iniciar sesion, acceder al menu, entrar a una partida de Monopoly y jugarla de principio a fin (tirar dados, comprar propiedades, pagar alquileres, ir a la carcel, robar cartas, jugar en el casino) hasta que se determina un ganador.
+- **Node.js** (versión 18 o superior) y **npm**.
+- **.NET SDK** (versión 8.0 recomendada).
+- **Docker Desktop** (o Docker Engine con Docker Compose) para la base de datos MySQL.
+- **Git** (para el control de versiones).
 
-### Implementacion de tram (CU17)
+## 5. Instalación
 
-La implementacion se ha realizado en frontend en el archivo `components/MonopolyScreen.tsx`, y toda la logica nueva esta delimitada entre comentarios `/*tram*/`.
+> **Nota:** Los siguientes pasos de instalación están orientados exclusivamente a configurar el proyecto en un entorno de desarrollo local. Si su único objetivo es probar el juego de manera multijugador, puede omitir todo este proceso y acceder directamente a la URL de AWS indicada en el apartado **Despliegue y URL**.
 
-- **Archivo modificado**: `components/MonopolyScreen.tsx`
-- **Ubicacion exacta 1**: bloque `/*tram*/` de helpers en las lineas aproximadas 166-194.
-- **Ubicacion exacta 2**: bloque `/*tram*/` integrado en `rollDice` al resolver la casilla, en las lineas aproximadas 465-497.
+Siga los siguientes pasos para preparar el entorno de desarrollo local:
 
-- **Bloque 1 (`/*tram*/`)**: helpers de estaciones (`getStationPositions`, `getOwnedStationPositions`, `getNextOwnedConsecutiveStation`) para validar que las estaciones sean consecutivas en tablero y propiedad del jugador.
-- **Bloque 2 (`/*tram*/`)**: integracion dentro del flujo de caida en casilla (en `rollDice`), que:
-	- detecta si el jugador cae en estacion propia,
-	- comprueba si existe siguiente estacion consecutiva tambien comprada,
-	- permite elegir `pasar` o `usar tram` (confirmacion simple),
-	- mueve al jugador a la siguiente estacion cuando se usa y finaliza turno.
+1. **Clonar el repositorio principal del juego:**
+   ```bash
+   git clone https://github.com/Raul1156/monopoly.git
+   cd monopoly
+   ```
 
----
+2. **Instalar dependencias del Frontend:**
+   ```bash
+   npm install
+   ```
 
-## 3. Arquitectura implementada y entorno de ejecucion
+3. **Restaurar dependencias del Backend:**
+   ```bash
+   cd backend-csharp
+   dotnet restore
+   cd ..
+   ```
 
-### Tecnologias utilizadas por capa
+4. **Preparar la Base de Datos:**
+   La base de datos MySQL, configurada mediante Docker, se encuentra en un repositorio independiente. Proceda a clonarlo y levantar el contenedor:
+   ```bash
+   git clone https://github.com/Marcelo3537/database.git
+   cd database
+   docker-compose up -d
+   ```
 
-| Capa | Tecnologia |
-|---|---|
-| **Frontend** | React + TypeScript |
-| **Estilos** | TailwindCSS |
-| **Bundler** | Vite |
-| **Backend** | C# (ASP.NET Core) |
-| **Base de datos persistente** | MySQL (en contenedor Docker) |
-| **Base de datos en memoria** | Entity Framework Core InMemory |
-| **ORM** | Entity Framework Core |
+## 6. Ejecución
 
-### Entorno de ejecucion
+Existen dos formas principales de poner en marcha el proyecto:
 
-- **Frontend**: Se ejecuta en local mediante `npm run dev` (servidor de desarrollo de Vite) en el puerto 5173.
-- **Backend**: Se ejecuta en local mediante `dotnet run` en el puerto 5000. En modo desarrollo incluye Swagger para poder probar los endpoints de la API.
-- **Base de datos**: MySQL se ejecuta en un contenedor Docker en el puerto 3307. La base de datos se llama `monopoly_db`.
-
-### Descripcion de la arquitectura
-
-El backend sigue una arquitectura por capas:
-
-- **Controllers**: Reciben las peticiones HTTP del frontend y las redirigen al servicio correspondiente. Hay controladores para el tablero, las cartas, las acciones del juego, la gestion de partidas, la tienda y los usuarios.
-- **Services**: Contienen la logica de negocio. Cada area del juego tiene su propio servicio (usuarios, tablero, cartas, partida, sesiones de juego).
-- **Data**: Contiene los contextos de base de datos. Usamos dos contextos: uno para la base de datos en memoria (sesiones de juego activas) y otro para MySQL (datos persistentes como usuarios, tablero, cartas, productos).
-- **Models**: Definen las entidades del dominio (usuario, partida, jugador, propiedad, casilla, etc.).
-- **DTOs**: Objetos de transferencia de datos que usamos para comunicarnos entre el frontend y el backend.
-
-El frontend se comunica con el backend a traves de un servicio centralizado (`apiService.ts`) que realiza peticiones HTTP a la API REST. La URL base de la API se configura en el archivo `.env`.
-
----
-
-## 4. Base de datos y operaciones CRUD implementadas
-
-### Modelo de datos
-
-El modelo entidad-relacion del Hito 2 se ha trasladado a las siguientes tablas en MySQL:
-
-- **usuarios**: Almacena los datos de los jugadores registrados (nombre de usuario, email, contrasenya, avatar, color, ELO, monedas, gemas, nivel, experiencia, estadisticas de partidas, fechas de creacion y ultimo login).
-- **casillas**: Contiene las 40 casillas del tablero con su posicion, nombre, tipo (salida, propiedad, estacion, comunidad, suerte, casino, impuesto, carcel, ir a la carcel) y descripcion.
-- **propiedades**: Guarda la informacion de las propiedades comprables, vinculadas a las casillas. Incluye precio, alquiler base, alquileres mejorados, precio de mejora y grupo de color.
-- **cartas**: Almacena las cartas de Comunidad y Suerte con su tipo, descripcion, efecto y valor.
-- **productos**: Articulos de la tienda con nombre, descripcion, precio, moneda, categoria, rareza y vista previa.
-- **inventario**: Registra los articulos comprados por cada usuario, con cantidad, estado de equipamiento y fecha de compra.
-
-### Relaciones
-
-- Cada propiedad esta vinculada a una casilla (relacion 1:1).
-- Cada registro de inventario pertenece a un usuario y a un producto (relaciones N:1).
-
-### Operaciones CRUD implementadas
-
-| Entidad | Crear | Leer | Actualizar | Borrar |
-|---|---|---|---|---|
-| **Usuarios** | Si (registro) | Si (perfil, ranking) | Si (perfil) | No |
-| **Casillas** | No (precargadas) | Si (tablero) | No | No |
-| **Propiedades** | No (precargadas) | Si (tablero, detalles) | No | No |
-| **Cartas** | No (precargadas) | Si (robar carta) | No | No |
-| **Productos** | No (precargadas) | Si (tienda) | No | No |
-| **Inventario** | Parcial | Si (inventario) | Pendiente (equipar) | No |
-
-### Acceso a datos
-
-El acceso a la base de datos se realiza a traves de Entity Framework Core, que actua como ORM. Hemos creado servicios especificos para cada area (por ejemplo, `MySqlUserService` para usuarios, `MySqlBoardService` para el tablero). Cada servicio utiliza el contexto de base de datos correspondiente para realizar las consultas. Las entidades de MySQL se definen en la carpeta `Data/MySqlEntities/` y se mapean a las tablas con Fluent API en el archivo `MonopolyMySqlDbContext.cs`.
-
----
-
-## 5. Plan de pruebas ejecutado
-
-A continuacion se detallan las pruebas que se han realizado sobre el MVP-1:
-
-| ID | Caso de prueba | Resultado esperado | Resultado obtenido | Estado |
-|---|---|---|---|---|
-| T01 | Registro con datos validos | Se crea el usuario y se redirige al menu | El usuario se crea correctamente y accede al menu | OK |
-| T02 | Registro con usuario duplicado | Se muestra un mensaje de error | Se muestra el error correctamente | OK |
-| T03 | Login con credenciales correctas | Se accede al menu principal | Acceso permitido | OK |
-| T04 | Login con contrasena incorrecta | Se muestra un mensaje de error | Se muestra el error correctamente | OK |
-| T05 | Tirar dados con backend activo | Se obtiene un valor del servidor | El dado se genera desde el backend | OK |
-| T06 | Tirar dados sin backend | Se genera un valor local | El dado se genera localmente con aviso al usuario | OK |
-| T07 | Comprar propiedad con dinero suficiente | Se descuenta el precio y se asigna la propiedad | La compra se realiza correctamente | OK |
-| T08 | Comprar propiedad sin dinero suficiente | Se muestra un mensaje de error | Se muestra el error correctamente | OK |
-| T09 | Caer en propiedad de otro jugador | Se cobra el alquiler automaticamente | El alquiler se descuenta y se suma al propietario | OK |
-| T10 | Caer en casilla de Ir a la Carcel | El jugador va a la carcel 3 turnos | El jugador se teletransporta a la carcel y permanece 3 turnos | OK |
-| T11 | Robar carta de Comunidad | Se obtiene una carta de la BD y se aplica el efecto | La carta se obtiene y el efecto se aplica correctamente | OK |
-| T12 | Caer en el casino | Se abre la ruleta interactiva | La ruleta se abre, se puede apostar y el resultado se aplica | OK |
-| T13 | Jugador llega a 0 puntos | Se marca como eliminado | El jugador se elimina y se salta en los turnos | OK |
-| T14 | Solo queda un jugador activo | Se declara ganador | Se muestra el mensaje de victoria | OK |
-| T15 | Consultar ranking | Se muestran los jugadores ordenados por ELO | Los jugadores se muestran correctamente desde la BD | OK |
-| T16 | Modo desarrollador de dados | Se puede elegir el valor del dado | El dado toma el valor seleccionado manualmente | OK |
-
-### Errores detectados y correcciones
-
-1. **Alquiler de estaciones incorrecto**: Inicialmente, el alquiler de las estaciones no escalaba correctamente segun el numero de estaciones que poseia el propietario. Se corrigio implementando la formula `25 * 2^(n-1)` donde n es el numero de estaciones del propietario.
-
-2. **Turno no avanzaba tras la carcel**: Cuando un jugador cumplia su condena en la carcel, el sistema no pasaba correctamente al siguiente turno. Se corrigio asegurando que la funcion `endTurn()` se llamase siempre al finalizar el procesamiento de la carcel, independientemente de si el jugador seguia preso o se liberaba.
-
----
-
-## 6. Repositorio y control de versiones
-
-### Enlace al repositorio
-Repositorio del proyecto:
-
-https://github.com/Raul1156/monopoly.git
-
-### Estructura de carpetas del proyecto
-
+**Opción A: Uso del script de inicio rápido (Recomendado para Windows)**
+En la raíz del proyecto, ejecute el archivo de procesamiento por lotes diseñado para levantar ambos servicios de forma simultánea:
+```cmd
+START.bat
 ```
+
+**Opción B: Arranque manual independiente**
+1. **Frontend:** En una terminal, sitúese en la raíz del proyecto y ejecute:
+   ```bash
+   npm run dev
+   ```
+2. **Backend:** En otra terminal, acceda a la carpeta `backend-csharp` y ejecute:
+   ```bash
+   dotnet run
+   ```
+
+## 7. Estructura del repositorio
+
+La estructura de directorios está organizada de la siguiente manera:
+
+```text
 monopoly/
-├── backend-csharp/           # Backend en C# (ASP.NET Core)
-│   ├── Controllers/          # Controladores de la API REST
-│   ├── Models/               # Entidades del dominio
-│   ├── Data/                 # Contextos de BD y entidades MySQL
-│   ├── Services/             # Logica de negocio
-│   ├── DTOs/                 # Objetos de transferencia de datos
-│   └── Program.cs            # Punto de entrada del backend
+├── backend-csharp/             # Código fuente del servidor (ASP.NET Core)
+│   ├── Controllers/            # Endpoints de la API REST
+│   ├── Hubs/                   # Controladores de WebSockets (SignalR)
+│   ├── Models/                 # Entidades del dominio
+│   ├── Data/                   # Contextos de la base de datos (MySQL e InMemory)
+│   ├── Services/               # Lógica de negocio y reglas del juego
+│   ├── DTOs/                   # Objetos de transferencia de datos
+│   └── Program.cs              # Punto de entrada y configuración
 │
-├── src/                      # Codigo fuente del frontend
-│   ├── App.tsx               # Componente raiz con navegacion
-│   ├── services/
-│   │   └── apiService.ts     # Servicio de comunicacion con la API
-│   ├── index.css             # Estilos globales
-│   └── main.tsx              # Punto de entrada del frontend
+├── src/                        # Código fuente de la interfaz de usuario (React)
+│   ├── App.tsx                 # Enrutador principal y configuración raíz
+│   ├── services/               # Clientes para la API y SignalR (ej. apiService.ts)
+│   ├── index.css               # Hoja de estilos global y configuración Tailwind
+│   └── main.tsx                # Punto de entrada de la aplicación web
 │
-├── components/               # Componentes React de la aplicacion
-│   ├── MonopolyScreen.tsx    # Pantalla principal del juego
-│   ├── LoginScreen.tsx       # Pantalla de login y registro
-│   ├── MainMenu.tsx          # Menu principal
-│   ├── ShopScreen.tsx        # Tienda
-│   ├── InventoryScreen.tsx   # Inventario
-│   ├── SettingsScreen.tsx    # Configuracion
-│   ├── RankingScreen.tsx     # Ranking de jugadores
-│   ├── ProfileScreen.tsx     # Perfil del usuario
-│   ├── EventosScreen.tsx     # Eventos (placeholder)
-│   ├── CasinoRouletteModal.tsx # Ruleta del casino
-│   ├── PropertyCardModal.tsx # Modal de propiedad
-│   ├── PlayerPropertiesModal.tsx # Modal de propiedades del jugador
-│   └── ui/                   # Componentes de interfaz reutilizables
+├── components/                 # Componentes de React
+│   ├── MonopolyScreen.tsx      # Lógica y renderizado del tablero de juego
+│   ├── LoginScreen.tsx         # Pantallas de autenticación y registro
+│   ├── MainMenu.tsx            # Navegación del menú principal
+│   ├── ShopScreen.tsx          # Lógica de la tienda de artículos
+│   ├── ui/                     # Componentes genéricos y reutilizables
+│   └── ...                     # Otras pantallas secundarias (inventario, perfil)
 │
-├── hooks/                    # Hooks personalizados de React
-│   └── useCasinoSounds.ts   # Efectos de sonido del casino
-│
-├── styles/                   # Hojas de estilo adicionales
-├── public/                   # Recursos estaticos
-├── .env                      # Variables de entorno (URL de la API)
-├── package.json              # Dependencias del frontend
-├── vite.config.ts            # Configuracion de Vite
-├── START.bat                 # Script para arrancar backend y frontend
-└── README.md                 # Este archivo
+├── database/                   # Scripts de base de datos (migraciones SQL)
+├── public/                     # Archivos estáticos e imágenes
+├── .env                        # Variables de entorno locales
+├── package.json                # Configuración y dependencias del entorno Node
+├── vite.config.ts              # Configuración del bundler
+├── START.bat                   # Script de automatización de arranque
+└── README.md                   # Documentación principal del proyecto
 ```
 
+## 8. Configuración
 
+El comportamiento de la aplicación puede ser modificado mediante las variables de entorno y los parámetros de red:
+
+- **Frontend (`.env`):** Debe contener la configuración para apuntar a la URL de la API y de los Hubs de SignalR correspondientes (por defecto, apuntando al host de backend local).
+- **Puertos de red habituales:**
+  - Aplicación Web Frontend: `5173`
+  - Servidor Backend API: `5000` / `5001`
+  - Base de datos MySQL Docker: `3306` / `3307` (según configuración del contenedor)
+
+Asegúrese de que estos puertos se encuentren libres en su equipo o modifique los archivos de configuración en consecuencia.
+
+## 9. Uso del sistema
+
+El flujo de uso principal para interactuar con la aplicación es el siguiente:
+
+1. **Autenticación:** Iniciar la aplicación y acceder al sistema. Puede crear una nueva cuenta mediante el formulario de registro.
+2. **Navegación:** Desde el menú principal, podrá visitar su inventario, la tienda, visualizar su perfil, consultar el ranking general o unirse a una partida.
+3. **Lobby Multijugador:** Los jugadores se conectan a un espacio común. La partida iniciará cuando todos los participantes estén sincronizados y listos.
+4. **Desarrollo de la partida:** El sistema otorga turnos de manera estricta. Durante un turno el jugador puede:
+   - Tirar los dados.
+   - Adquirir la propiedad sobre la que se detiene o, en su defecto, pagar el alquiler correspondiente.
+   - Realizar acciones especiales según la casilla (Cartas de Comunidad, Suerte, Cárcel o Ruleta).
+5. **Finalización:** La partida concluye mediante la bancarrota progresiva de los jugadores, declarando victorioso al último participante que mantenga fondos positivos.
+
+## 10. Credenciales de prueba
+
+Para realizar pruebas rápidas sin necesidad de configurar correos reales, el sistema admite cualquier dirección de correo electrónico válida estructuralmente (por ejemplo, `test@test.com` o `admin@admin.com`) en el registro de un nuevo usuario. Puede crear cuantas cuentas desee de esta manera para realizar pruebas multijugador con diferentes ventanas de navegador.
+
+## 11. Estado del proyecto
+
+El proyecto se encuentra en una etapa de desarrollo estable tras finalizar su Producto Mínimo Viable (MVP).
+Están implementadas y operativas todas las mecánicas centrales del juego, incluyendo la sincronización en tiempo real, el sistema financiero, el comercio de propiedades, la lógica del tablero, y los sistemas de persistencia del usuario.
+
+## 12. Despliegue y URL
+
+El proyecto ha sido desplegado exitosamente utilizando una instancia de Amazon Web Services (AWS), permitiendo la ejecución de partidas multijugador en red sin necesidad de configuraciones locales.
+
+Puede acceder a la aplicación, crear su cuenta y jugar directamente con otros usuarios a través del siguiente enlace público:
+
+**URL de Acceso (AWS):** [http://32.194.172.210:5173/](http://32.194.172.210:5173/)
