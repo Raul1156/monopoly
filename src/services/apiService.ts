@@ -81,7 +81,6 @@ export interface PropertyOwnership {
   propertyName: string;
   houses: number;
   hasHotel: boolean;
-  isMortgaged: boolean;
 }
 
 export interface DiceRoll {
@@ -431,19 +430,7 @@ class ApiService {
     });
   }
 
-  async mortgageProperty(gameId: number, playerId: number, propertyId: number): Promise<{ message: string; moneyLeft: number }> {
-    return this.request(`/gameactions/mortgage`, {
-      method: 'POST',
-      body: JSON.stringify({ gameId, playerId, propertyId }),
-    });
-  }
 
-  async unmortgageProperty(gameId: number, playerId: number, propertyId: number): Promise<{ message: string; moneyLeft: number }> {
-    return this.request(`/gameactions/unmortgage`, {
-      method: 'POST',
-      body: JSON.stringify({ gameId, playerId, propertyId }),
-    });
-  }
 
   async endGame(gameId: number, winnerId?: number) {
     let url = `/gameactions/end-game?gameId=${gameId}`;

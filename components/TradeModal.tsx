@@ -29,7 +29,7 @@ interface TradeOfferProperty {
   releaseMortgageNow: boolean;
 }
 
-// === Incoming offer modal (shown to the receiving player) ===
+// Incoming offer modal (shown to the receiving player)
 interface IncomingOfferProps {
   isOpen: boolean;
   fromPlayerName: string;
@@ -47,7 +47,7 @@ export function IncomingTradeOffer({ isOpen, fromPlayerName, propertyName, cashO
       <div className="absolute inset-0 bg-black/70" />
       <div className="relative z-10 w-[90vw] max-w-md rounded-2xl border-2 border-amber-500/50 bg-zinc-900 shadow-2xl p-6">
         <h3 className="text-xl font-bold text-amber-300 mb-4 text-center">📨 Oferta de Negociación</h3>
-        
+
         <div className="bg-zinc-800 rounded-lg p-4 mb-4 border border-zinc-700">
           <p className="text-white text-center mb-3">
             <span className="font-bold text-cyan-300">{fromPlayerName}</span> quiere comprarte:
@@ -239,17 +239,16 @@ export function TradeModal({
                   const prop = boardProperties[pp.propertyId];
                   if (!prop) return null;
                   const hasBuildings = (pp.level ?? 0) > 0;
-                  
+
                   return (
                     <button
                       key={pp.propertyId}
                       onClick={() => !hasBuildings && handleSelectProperty(pp.propertyId)}
                       disabled={hasBuildings}
-                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
-                        hasBuildings
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${hasBuildings
                           ? "bg-zinc-800/50 border-zinc-700/50 opacity-50 cursor-not-allowed"
                           : "bg-zinc-800 border-zinc-700 hover:border-amber-500/50"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center space-x-3">
                         {prop.colorGrupo && (

@@ -157,11 +157,6 @@ export function LoginScreen({ onAuth }: LoginScreenProps) {
               {showRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
             </button>
 
-            {!showRegister && (
-              <button className="block text-red-300 hover:text-red-200 text-sm underline mx-auto">
-                ¿Olvidaste tu contraseña?
-              </button>
-            )}
           </div>
         </CardContent>
       </Card>
