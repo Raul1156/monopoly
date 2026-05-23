@@ -190,6 +190,13 @@ public class ChangePasswordDto
     public string NewPassword { get; set; } = string.Empty;
 }
 
+// === Buy Product DTO ===
+public class BuyProductDto
+{
+    public int UserId { get; set; }
+    public int ProductId { get; set; }
+}
+
 // === Achievement DTOs ===
 public class AchievementDto
 {

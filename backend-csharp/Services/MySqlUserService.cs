@@ -224,7 +224,11 @@ public class MySqlUserService : IUserService
         if (string.IsNullOrWhiteSpace(avatar) || avatar == "default")
             return $"https://api.dicebear.com/7.x/avataaars/svg?seed={Uri.EscapeDataString(username)}";
 
-        // If the DB stores a relative avatar name, keep behavior simple: return it as-is.
+        // If it's a profile photo filename (has an image extension), construct the path
+        var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+        if (imageExtensions.Any(ext => avatar.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
+            return $"/fotos-perfil/{avatar}";
+
         return avatar;
     }
 }

@@ -5,29 +5,33 @@ import { Badge } from './ui/badge';
 import { 
   Package, 
   ArrowLeft,
-  Check
+  Check,
+  Camera
 } from 'lucide-react';
 import type { Screen } from '../src/App.tsx';
 import { apiService, type InventoryItem as ApiInventoryItem, type User } from '../src/services/apiService';
+import { toast } from 'sonner';
 
 interface InventoryScreenProps {
   onNavigate: (screen: Screen) => void;
   currentUser: User;
+  onUserUpdate?: (user: User) => void;
 }
 
 interface InventoryItem {
   id: number;
   name: string;
   description: string;
-  category: 'themes';
+  category: 'themes' | 'avatars';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   preview: string;
   equipped: boolean;
 }
 
-export function InventoryScreen({ onNavigate, currentUser }: InventoryScreenProps) {
+export function InventoryScreen({ onNavigate, currentUser, onUserUpdate }: InventoryScreenProps) {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [equippedItems, setEquippedItems] = useState<Set<number>>(new Set());
+  const [equipping, setEquipping] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,7 +42,7 @@ export function InventoryScreen({ onNavigate, currentUser }: InventoryScreenProp
           id: i.productId,
           name: i.name,
           description: i.description,
-          category: 'themes' as const,
+          category: i.category as 'themes' | 'avatars',
           rarity: i.rarity,
           preview: i.preview,
           equipped: i.equipped,
@@ -65,30 +69,66 @@ export function InventoryScreen({ onNavigate, currentUser }: InventoryScreenProp
     legendary: 'border-amber-400 text-amber-400'
   };
 
-  const handleEquip = (itemId: number) => {
-    const newEquipped = new Set(equippedItems);
-    
-    // Desequipar otros items de la misma categoría
-    inventoryItems.forEach(item => {
-      if (item.id !== itemId) {
-        newEquipped.delete(item.id);
-      }
-    });
-    
-    // Equipar/desequipar el item seleccionado
-    if (newEquipped.has(itemId)) {
-      newEquipped.delete(itemId);
-    } else {
-      newEquipped.add(itemId);
-    }
-    
-    setEquippedItems(newEquipped);
+  const rarityLabels: Record<string, string> = {
+    common: 'Común',
+    rare: 'Raro',
+    epic: 'Épico',
+    legendary: 'Legendario'
   };
+
+  const handleEquip = async (itemId: number) => {
+    setEquipping(itemId);
+    const isEquipped = equippedItems.has(itemId);
+    try {
+      if (isEquipped) {
+        await apiService.unequipItem(currentUser.id, itemId);
+        const newEquipped = new Set(equippedItems);
+        newEquipped.delete(itemId);
+        setEquippedItems(newEquipped);
+        toast.success('Item desequipado');
+
+        // If it was an avatar, reset to default
+        const item = inventoryItems.find(i => i.id === itemId);
+        if (item?.category === 'avatars' && onUserUpdate) {
+          const updatedUser = await apiService.getUser(currentUser.id);
+          onUserUpdate(updatedUser);
+        }
+      } else {
+        await apiService.equipItem(currentUser.id, itemId);
+        
+        // Unequip others of same category locally
+        const item = inventoryItems.find(i => i.id === itemId);
+        const newEquipped = new Set<number>();
+        equippedItems.forEach(id => {
+          const eqItem = inventoryItems.find(i => i.id === id);
+          if (eqItem?.category !== item?.category) {
+            newEquipped.add(id);
+          }
+        });
+        newEquipped.add(itemId);
+        setEquippedItems(newEquipped);
+        toast.success('Item equipado');
+
+        // If it's an avatar, update the user data
+        if (item?.category === 'avatars' && onUserUpdate) {
+          const updatedUser = await apiService.getUser(currentUser.id);
+          onUserUpdate(updatedUser);
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al equipar';
+      toast.error(msg);
+    } finally {
+      setEquipping(null);
+    }
+  };
+
+  const filteredItems = inventoryItems.filter(i => i.category === 'avatars');
 
   return (
     <div className="flex flex-col h-full p-6 max-w-7xl mx-auto w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <Button 
           variant="ghost" 
           size="lg"
@@ -100,80 +140,104 @@ export function InventoryScreen({ onNavigate, currentUser }: InventoryScreenProp
         </Button>
         
         <h1 className="text-white text-3xl font-bold flex items-center">
-          <Package className="w-8 h-8 mr-3 text-amber-400" />
-          Mis Temas
+          <Camera className="w-8 h-8 mr-3 text-amber-400" />
+          Fotos de Perfil
         </h1>
         
         <div className="flex items-center text-white/60 text-lg">
-          <span>{inventoryItems.length} items</span>
+          <span>{filteredItems.length} items</span>
         </div>
       </div>
 
-      {/* Themes Grid */}
+      {/* Items Grid */}
       <div className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {inventoryItems.map((item) => (
-            <Card key={item.id} className="bg-black/60 border-amber-500/20 hover:border-amber-400/50 transition-colors">
-              <CardContent className="p-6">
-                <div className="flex flex-col items-center text-center space-y-4">
-                  {/* Item Preview */}
-                  <div className={`w-24 h-24 bg-gradient-to-br from-amber-400/20 to-red-600/20 rounded-xl flex items-center justify-center text-4xl border-2 relative ${
-                    equippedItems.has(item.id) ? 'border-amber-400 shadow-amber-400/50 shadow-lg' : 'border-amber-500/30'
-                  }`}>
-                    {item.preview}
-                    {equippedItems.has(item.id) && (
-                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-black" />
+          {filteredItems.map((item) => {
+            const isAvatar = item.category === 'avatars';
+            const isEquipped = equippedItems.has(item.id);
+            const isLoading = equipping === item.id;
+
+            return (
+              <Card key={item.id} className="bg-black/60 border-amber-500/20 hover:border-amber-400/50 transition-colors">
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    {/* Item Preview */}
+                    {isAvatar ? (
+                      <div className={`w-24 h-24 rounded-xl overflow-hidden border-2 relative ${
+                        isEquipped ? 'border-amber-400 shadow-amber-400/50 shadow-lg' : 'border-amber-500/30'
+                      }`}>
+                        <img 
+                          src={`/fotos-perfil/${item.preview}`}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                        {isEquipped && (
+                          <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-lg">
+                            <Check className="w-4 h-4 text-black" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={`w-24 h-24 bg-gradient-to-br from-amber-400/20 to-red-600/20 rounded-xl flex items-center justify-center text-4xl border-2 relative ${
+                        isEquipped ? 'border-amber-400 shadow-amber-400/50 shadow-lg' : 'border-amber-500/30'
+                      }`}>
+                        {item.preview}
+                        {isEquipped && (
+                          <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-black" />
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                  
-                  {/* Item Info */}
-                  <div className="flex-1 w-full">
-                    <div className="flex flex-col items-center space-y-2 mb-2">
-                      <h3 className="text-white font-semibold text-lg">{item.name}</h3>
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs px-3 py-1 ${rarityColors[item.rarity]}`}
-                      >
-                        {item.rarity}
-                      </Badge>
-                    </div>
-                    <p className="text-white/60 text-sm mb-4">{item.description}</p>
                     
-                    <div className="flex flex-col items-center space-y-3">
-                      {equippedItems.has(item.id) && (
-                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                          <Check className="w-3 h-3 mr-1" />
-                          Equipado
+                    {/* Item Info */}
+                    <div className="flex-1 w-full">
+                      <div className="flex flex-col items-center space-y-2 mb-2">
+                        <h3 className="text-white font-semibold text-lg">{item.name}</h3>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs px-3 py-1 ${rarityColors[item.rarity]}`}
+                        >
+                          {rarityLabels[item.rarity] || item.rarity}
                         </Badge>
-                      )}
+                      </div>
+                      <p className="text-white/60 text-sm mb-4">{item.description}</p>
                       
-                      <Button 
-                        size="default"
-                        variant={equippedItems.has(item.id) ? "outline" : "default"}
-                        onClick={() => handleEquip(item.id)}
-                        className={
-                          equippedItems.has(item.id) 
-                            ? "border-amber-400 text-amber-400 hover:bg-amber-500/20 w-full" 
-                            : "bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white w-full"
-                        }
-                      >
-                        {equippedItems.has(item.id) ? 'Desequipar' : 'Equipar'}
-                      </Button>
+                      <div className="flex flex-col items-center space-y-3">
+                        {isEquipped && (
+                          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                            <Check className="w-3 h-3 mr-1" />
+                            Equipado
+                          </Badge>
+                        )}
+                        
+                        <Button 
+                          size="default"
+                          variant={isEquipped ? "outline" : "default"}
+                          onClick={() => handleEquip(item.id)}
+                          disabled={isLoading}
+                          className={
+                            isEquipped 
+                              ? "border-amber-400 text-amber-400 hover:bg-amber-500/20 w-full" 
+                              : "bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white w-full"
+                          }
+                        >
+                          {isLoading ? 'Procesando...' : isEquipped ? 'Desequipar' : 'Equipar'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
           
-          {inventoryItems.length === 0 && (
+          {filteredItems.length === 0 && (
             <Card className="bg-black/40 border-amber-500/20 col-span-full">
               <CardContent className="p-12 text-center">
-                <Package className="w-16 h-16 text-white/40 mx-auto mb-6" />
-                <p className="text-white/60 text-lg">No tienes temas aún</p>
-                <p className="text-white/40 text-base mt-2">¡Visita la tienda para conseguir más!</p>
+                <Camera className="w-16 h-16 text-white/40 mx-auto mb-6" />
+                <p className="text-white/60 text-lg">No tienes fotos de perfil</p>
+                <p className="text-white/40 text-base mt-2">¡Visita la tienda para conseguir fotos exclusivas!</p>
               </CardContent>
             </Card>
           )}

@@ -228,7 +228,6 @@ export function ProfileScreen({ currentUser, onUserUpdate }: ProfileScreenProps)
                       : 'bg-black/30 border-white/10 text-white/40'
                   }`}
                 >
-                  <span className="text-2xl">{achievement.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate">{achievement.name}</p>
                     <p className="text-xs opacity-70 truncate">{achievement.description}</p>
