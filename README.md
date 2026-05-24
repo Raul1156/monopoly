@@ -36,72 +36,7 @@ La aplicación emplea una arquitectura cliente-servidor, con el backend estructu
 
 El frontend consume los servicios a través de un servicio centralizado y gestiona el estado global de la interfaz y de la partida mediante Hooks de React.
 
-## 4. Requisitos previos
-
-Para poder ejecutar el proyecto en un entorno local, es necesario disponer del siguiente software instalado en su equipo:
-
-- **Node.js** (versión 18 o superior) y **npm**.
-- **.NET SDK** (versión 8.0 recomendada).
-- **Docker Desktop** (o Docker Engine con Docker Compose) para la base de datos MySQL.
-- **Git** (para el control de versiones).
-
-## 5. Instalación
-
-> **Nota:** Los siguientes pasos de instalación están orientados exclusivamente a configurar el proyecto en un entorno de desarrollo local. Si su único objetivo es probar el juego de manera multijugador, puede omitir todo este proceso y acceder directamente a la URL de AWS indicada en el apartado **Despliegue y URL**.
-
-Siga los siguientes pasos para preparar el entorno de desarrollo local:
-
-1. **Clonar el repositorio principal del juego:**
-   ```bash
-   git clone https://github.com/Raul1156/monopoly.git
-   cd monopoly
-   ```
-
-2. **Instalar dependencias del Frontend:**
-   ```bash
-   npm install
-   ```
-
-3. **Restaurar dependencias del Backend:**
-   ```bash
-   cd backend-csharp
-   dotnet restore
-   cd ..
-   ```
-
-4. **Preparar la Base de Datos:**
-   La base de datos MySQL, configurada mediante Docker, se encuentra en un repositorio independiente. Proceda a clonarlo y levantar el contenedor:
-   ```bash
-   git clone https://github.com/Marcelo3537/database.git
-   cd database
-   docker-compose up -d
-   ```
-
-## 6. Ejecución
-
-Para iniciar el proyecto de manera local hay 2 opciones, para poder usarlas primero debes de crear un contenedor docker con una bd mysql:
-
-**Opción A: Uso del script de inicio rápido (Recomendado para Windows)**
-En la raíz del proyecto, ejecute el archivo de procesamiento por lotes diseñado para levantar ambos servicios de forma simultánea:
-```cmd
-START.bat
-```
-
-**Opción B: Arranque manual independiente**
-1. **Frontend:** En una terminal, sitúese en la raíz del proyecto y ejecute:
-   ```bash
-   npm run dev
-   ```
-2. **Backend:** En otra terminal, acceda a la carpeta `backend-csharp` y ejecute:
-   ```bash
-   dotnet run
-   ```
-**Opción C: Jugar directamente gracias al servicio aws que hemos implementado**
-
-1. Puedes acceder al juego directamente y probar todos sus sistemas siguiendo los pasos del punto 12.
-
-
-## 7. Estructura del repositorio
+## 4. Estructura del repositorio
 
 La estructura de directorios está organizada de la siguiente manera:
 
@@ -139,19 +74,19 @@ monopoly/
 └── README.md                   # Documentación principal del proyecto
 ```
 
-## 8. Configuración
+## 5. Configuración
 
 El comportamiento de la aplicación puede ser modificado mediante las variables de entorno y los parámetros de red:
 
 - **Frontend (`.env`):** Debe contener la configuración para apuntar a la URL de la API y de los Hubs de SignalR correspondientes (por defecto, apuntando al host de backend local).
 - **Puertos de red habituales:**
   - Aplicación Web Frontend: `5173`
-  - Servidor Backend API: `5000` / `5001`
-  - Base de datos MySQL Docker: `3306` / `3307` (según configuración del contenedor)
+  - Servidor Backend API: `5000`
+  - Base de datos MySQL Docker: `3306` / `3307`
 
 Asegúrese de que estos puertos se encuentren libres en su equipo o modifique los archivos de configuración en consecuencia.
 
-## 9. Uso del sistema
+## 6. Uso del sistema
 
 El flujo de uso principal para interactuar con la aplicación es el siguiente:
 
@@ -164,7 +99,7 @@ El flujo de uso principal para interactuar con la aplicación es el siguiente:
    - Realizar acciones especiales según la casilla (Cartas de Comunidad, Suerte, Cárcel o Ruleta).
 5. **Finalización:** La partida concluye mediante la bancarrota progresiva de los jugadores, declarando victorioso al último participante que mantenga fondos positivos.
 
-## 10. Credenciales de prueba
+## 7. Credenciales de prueba
 
 Para realizar pruebas rápidas sin necesidad de configurar correos reales, el sistema admite cualquier dirección de correo electrónico válida estructuralmente (por ejemplo, `test@test.com` o `admin@admin.com`) en el registro de un nuevo usuario. Puede crear cuantas cuentas desee de esta manera para realizar pruebas multijugador con diferentes ventanas de navegador.
 
@@ -172,15 +107,20 @@ Ademas hemos creado un usuario con privilegios de admin para poder acceder al pa
 Username: admin
 Password: admin1234
 
-## 11. Estado del proyecto
+## 8. Estado del proyecto
 
 El proyecto se encuentra con el MVP completo
 Están implementadas  todas las mecánicas centrales del juego, incluyendo la sincronización en tiempo real, el sistema financiero, el negocio de propiedades, la lógica del tablero, y los sistemas de persistencia del usuario.
 
-## 12. Despliegue y URL
+## 9. Despliegue y URL
 
 Hemos desplegado el proyecto utilizando Amazon Web Services (AWS), permitiendo la ejecución de partidas multijugador en red sin necesidad de configuraciones locales.
 
 Puedes acceder a la aplicación, crear su cuenta y jugar directamente con otros usuarios a través del siguiente enlace público:
 
 **URL de Acceso (AWS):** [http://32.194.172.210:5173/](http://32.194.172.210:5173/)
+
+Ya tienes una cuenta creada para facilitar las cosas.
+
+Username: begoña
+Password: 1234
