@@ -79,7 +79,7 @@ Siga los siguientes pasos para preparar el entorno de desarrollo local:
 
 ## 6. Ejecución
 
-Existen dos formas principales de poner en marcha el proyecto:
+Para iniciar el proyecto de manera local hay 2 opciones, para poder usarlas primero debes de crear un contenedor docker con una bd mysql:
 
 **Opción A: Uso del script de inicio rápido (Recomendado para Windows)**
 En la raíz del proyecto, ejecute el archivo de procesamiento por lotes diseñado para levantar ambos servicios de forma simultánea:
@@ -96,6 +96,10 @@ START.bat
    ```bash
    dotnet run
    ```
+**Opción C: Jugar directamente gracias al servicio aws que hemos implementado**
+
+1. Puedes acceder al juego directamente y probar todos sus sistemas siguiendo los pasos del punto 12.
+
 
 ## 7. Estructura del repositorio
 
@@ -164,15 +168,19 @@ El flujo de uso principal para interactuar con la aplicación es el siguiente:
 
 Para realizar pruebas rápidas sin necesidad de configurar correos reales, el sistema admite cualquier dirección de correo electrónico válida estructuralmente (por ejemplo, `test@test.com` o `admin@admin.com`) en el registro de un nuevo usuario. Puede crear cuantas cuentas desee de esta manera para realizar pruebas multijugador con diferentes ventanas de navegador.
 
+Ademas hemos creado un usuario con privilegios de admin para poder acceder al panel de administrador.
+Username: admin
+Password: admin1234
+
 ## 11. Estado del proyecto
 
-El proyecto se encuentra en una etapa de desarrollo estable tras finalizar su Producto Mínimo Viable (MVP).
-Están implementadas y operativas todas las mecánicas centrales del juego, incluyendo la sincronización en tiempo real, el sistema financiero, el comercio de propiedades, la lógica del tablero, y los sistemas de persistencia del usuario.
+El proyecto se encuentra con el MVP completo
+Están implementadas  todas las mecánicas centrales del juego, incluyendo la sincronización en tiempo real, el sistema financiero, el negocio de propiedades, la lógica del tablero, y los sistemas de persistencia del usuario.
 
 ## 12. Despliegue y URL
 
-El proyecto ha sido desplegado exitosamente utilizando una instancia de Amazon Web Services (AWS), permitiendo la ejecución de partidas multijugador en red sin necesidad de configuraciones locales.
+Hemos desplegado el proyecto utilizando Amazon Web Services (AWS), permitiendo la ejecución de partidas multijugador en red sin necesidad de configuraciones locales.
 
-Puede acceder a la aplicación, crear su cuenta y jugar directamente con otros usuarios a través del siguiente enlace público:
+Puedes acceder a la aplicación, crear su cuenta y jugar directamente con otros usuarios a través del siguiente enlace público:
 
 **URL de Acceso (AWS):** [http://32.194.172.210:5173/](http://32.194.172.210:5173/)
